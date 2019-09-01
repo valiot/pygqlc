@@ -216,7 +216,7 @@ class GraphQLClient:
       else:
         # * GraphQL message received, proccess it:
         gql_msg = self._clean_sub_message(_id, message)
-        _cb(_id, gql_msg)
+        _cb(gql_msg)
       time.sleep(0.1)
   
   def _clean_sub_message(self, _id, message):

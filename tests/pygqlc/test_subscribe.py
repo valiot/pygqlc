@@ -2,14 +2,14 @@ from pygqlc import GraphQLClient
 from tests.pygqlc import subscriptions as subs
 from tests.pygqlc import mutations as muts
 gql = GraphQLClient()
-def on_author_updated(_id, msg):
+def on_author_updated(msg):
   if(msg['successful']):
     author = msg['result']
     print(f'author {author["name"]} was updated successfully')
   else:
     print(f'error creating author: {msg["messages"]}')
 
-def on_author_created(_id, msg):
+def on_author_created(msg):
   if(msg['successful']):
     author = msg['result']
     print(f'author {author["name"]} was created successfully')
