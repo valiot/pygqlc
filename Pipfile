@@ -1,0 +1,20 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+pytest = "*"
+pylint = "*"
+autopep8 = "*"
+setuptools = "*"
+wheel = "*"
+
+[packages]
+requests = "*"
+pydash = "*"
+singleton-decorator = "*"
+tenacity = "*"
+
+[requires]
+python_version = "3.7"
