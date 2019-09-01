@@ -148,7 +148,7 @@ class GraphQLClient:
           errors.extend(data.get('messages', []))
     return data, errors
   # * Subscription high level implementation ******************
-  def subscribe(self, query, variables=None, headers=None, callback=None):
+  def subscribe(self, query, variables=None, callback=None):
     # initialize websocket only once
     if not self._conn:
       env = self.environments.get(self.environment, None)
