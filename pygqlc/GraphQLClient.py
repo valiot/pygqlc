@@ -127,7 +127,7 @@ class GraphQLClient:
     except Exception as e:
       errors = [{'message': str(e)}]
     finally:
-      errors = response.get('errors', [])
+      errors.extend(response.get('errors', []))
       if(not errors):
         data = response.get('data', None)
       if flatten:
