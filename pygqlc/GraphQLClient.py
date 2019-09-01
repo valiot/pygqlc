@@ -14,8 +14,7 @@ from tenacity import (
 GQL_WS_SUBPROTOCOL = "graphql-ws"
 
 def has_errors(result):
-  data, errors = result
-  print(result)
+  _, errors = result
   return len(errors) > 0
 
 def data_flatten(data, single_child=False):
@@ -29,6 +28,8 @@ def data_flatten(data, single_child=False):
   elif single_child and type(data) == list:
     if len(data) == 1:
       return data_flatten(data[0], single_child)
+    elif len(data) == 0:
+      return None # * Return none if no child was found
     else:
       return data
   else:
@@ -96,7 +97,7 @@ class GraphQLClient:
     return data, errors
   
   # * Query high level implementation
-  def query(self, query, variables=None, flatten=True):
+  def query(self, query, variables=None, flatten=True, single_child=False):
     data = None
     errors = []
     try:
@@ -107,27 +108,14 @@ class GraphQLClient:
         data = response
       errors = response.get('errors', [])
       if flatten:
-        data = data_flatten(data)
+        data = data_flatten(data, single_child=single_child)
     except Exception as e:
       errors = [{'message': str(e)}]
     return data, errors
 
   # * Query high level implementation
-  def query_one(self, query, variables=None, flatten=True):
-    data = None
-    errors = []
-    try:
-      response = self.execute(query, variables)
-      if flatten:
-        data = response.get('data', None)
-      else:
-        data = response
-      errors = response.get('errors', [])
-      if flatten:
-        data = data_flatten(data, single_child=True)
-    except Exception as e:
-      errors = [{'message': str(e)}]
-    return data, errors
+  def query_one(self, query, variables=None):
+    return self.query(query, variables, flatten=True, single_child=True)
   
   # * Mutation high level implementation
   def mutate(self, mutation, variables=None, flatten=True):
