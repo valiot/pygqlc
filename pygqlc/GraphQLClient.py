@@ -147,7 +147,7 @@ class GraphQLClient:
     return data, errors
   # * Subscription high level implementation ******************
   def subscribe(self, query, variables=None, callback=None, flatten=True):
-    # initialize websocket only once
+    # ! initialize websocket only once
     if not self._conn:
       env = self.environments.get(self.environment, None)
       self.ws_url = env.get('wss')
@@ -159,7 +159,8 @@ class GraphQLClient:
     self.subs[_id].update({
       'thread': threading.Thread(target=self._subscription_loop, args=(_cb, _id)),
       'flatten': flatten,
-      'queue': []
+      'queue': [],
+      'runs': 0,
     })
     self.subs[_id]['thread'].start()
     # ! Create unsubscribe function for this specific thread:
@@ -217,6 +218,7 @@ class GraphQLClient:
         # * GraphQL message received, proccess it:
         gql_msg = self._clean_sub_message(_id, message)
         _cb(gql_msg)
+        self.subs[_id]['runs'] += 1 # take note of how many times this sub has been triggered
       time.sleep(0.1)
   
   def _clean_sub_message(self, _id, message):
