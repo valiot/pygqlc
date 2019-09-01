@@ -3,6 +3,7 @@ import json
 import time
 import threading
 import websocket
+import pydash as py_
 from singleton_decorator import singleton
 from tenacity import (
   retry, 
@@ -35,6 +36,12 @@ def data_flatten(data, single_child=False):
   else:
     return data # ! not a dict, nothing to flatten
 
+def safe_pop(data, index=0, default=None):
+  if len(data) > 0:
+    return data.pop(index)
+  else:
+    return default
+
 # ! Example With:
 '''
 client = GraphQLClient()
@@ -64,7 +71,10 @@ class GraphQLClient:
     self.ws_url = None
     self._conn = None
     self._subscription_running = False
-    self._st_id = None
+    self.subs = {} # * subscriptions running
+    self.sub_counter = 0
+    self.sub_router_thread = None
+    self.unsubscribing = False
   
   # * with <Object> implementation
   def __enter__(self):
@@ -136,49 +146,102 @@ class GraphQLClient:
           errors.extend(data.get('messages', []))
     return data, errors
   # * Subscription high level implementation ******************
-  def subscribe(self, query, variables=None, callback=None):
+  def subscribe(self, query, variables=None, callback=None, flatten=True):
     # initialize websocket only once
     if not self._conn:
       env = self.environments.get(self.environment, None)
       self.ws_url = env.get('wss')
-      self._conn = websocket.create_connection(
-        self.ws_url,
-        on_message=self._on_message,
-        subprotocols=[GQL_WS_SUBPROTOCOL])
-      self._conn.on_message = self._on_message
+      self._conn = websocket.create_connection(self.ws_url,subprotocols=[GQL_WS_SUBPROTOCOL])
     self._conn_init()
     payload = {'query': query, 'variables': variables}
-    _cc = self._on_message if not callback else callback
+    _cb = callback if callback is not None else self._on_message
     _id = self._start(payload)
-    def subs(_cc):
-      self._subscription_running = True
-      while self._subscription_running:
-        r = json.loads(self._conn.recv())
-        if r['type'] == 'error' or r['type'] == 'complete':
-          print(r)
-          self.stop_subscribe(_id)
-          break
-        elif r['type'] != 'ka':
-          _cc(_id, r)
-        time.sleep(1)
-    self._st_id = threading.Thread(target=subs, args=(_cc,))
-    self._st_id.start()
-
-
-  def stop_subscribe(self, _id):
-    self._subscription_running = False
-    self._st_id.join()
+    self.subs[_id].update({
+      'thread': threading.Thread(target=self._subscription_loop, args=(_cb, _id)),
+      'flatten': flatten,
+      'queue': []
+    })
+    self.subs[_id]['thread'].start()
+    # ! Create unsubscribe function for this specific thread:
+    def unsubscribe():
+      return self._unsubscribe(_id)
+    self.subs[_id].update({'unsub': unsubscribe})
+    return unsubscribe
+  
+  def _unsubscribe(self, _id):
+    self.unsubscribing = True
+    self.subs[_id]['kill'] = True
     self._stop(_id)
+    self.subs[_id]['thread'].join()
+    self.subs[_id].update({'running': False})
+    self.unsubscribing = False
+  
+  def _sub_routing_loop(self):
+    aborted = False
+    while not aborted:
+      starting = len(self.subs.items()) == 0
+      if starting or self.unsubscribing:
+        time.sleep(0.01)
+        continue
+      aborted = all(sub['kill'] for (k, sub) in self.subs.items())
+      if aborted:
+        print(f'stopping subscription routing loop')
+        break
+      message = json.loads(self._conn.recv())
+      if message['type'] == 'data':
+        _id = py_.get(message, 'id')
+        self.subs[_id]['queue'].append(message)
+      elif message['type'] in['connection_ack', 'ka', 'complete']:
+        pass
+      else:
+        print(f'unknown msg type: {message}')
+      time.sleep(0.1)
+  
+  def _subscription_loop(self, _cb, _id):
+    self.subs[_id].update({'running': True})
+    while self.subs[_id]['running']:
+      aborted = self.subs[_id]['kill']
+      if aborted:
+        print(f'stopping subscription {_id} on Unsubscribe')
+        break
+      message = safe_pop(self.subs[_id]['queue'])
+      if not message:
+        time.sleep(0.1)
+        continue
+      if message['type'] == 'error' or message['type'] == 'complete':
+        print(f'stopping subscription {_id} on {message["type"]}')
+        break
+      if message['type'] == 'connection_ack' or message['type'] == 'ka':
+        pass
+      else:
+        # * GraphQL message received, proccess it:
+        gql_msg = self._clean_sub_message(_id, message)
+        _cb(_id, gql_msg)
+      time.sleep(0.1)
+  
+  def _clean_sub_message(self, _id, message):
+    data = py_.get(message, 'payload', {})
+    return data_flatten(data) if self.subs[_id]['flatten'] else data
 
   def close(self):
+    if not self.sub_router_thread:
+      print('connection not stablished, nothing to close')
+      return
+    for _, sub in self.subs.items():
+      sub['unsub']()
+    time.sleep(1.0)
+    self.sub_router_thread.join()
     self._conn.close()
+    self.sub_router_thread = None
+    self._conn = None
+    self.sub_counter = 0
+    self.subs = {}
   
-  def _on_message(self, message):
-    data = json.loads(message)
-    # skip keepalive messages
-    if data['type'] != 'ka':
-      print(message)
-  
+  def _on_message(self, _id, message):
+    '''Dummy callback for subscription'''
+    print(f'message received on subscription {_id}')
+    print(message)
+
   def _conn_init(self):
     env = self.environments.get(self.environment, None)
     headers = env.get('headers', {})
@@ -188,9 +251,15 @@ class GraphQLClient:
     }
     self._conn.send(json.dumps(payload))
     self._conn.recv()
+    if not self.sub_router_thread:
+      print('first subscription, starting routing loop')
+      self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
+      self.sub_router_thread.start()
 
   def _start(self, payload):
-    _id = '1' # gen_id() # ! Probably requires auto-increment, more than random ID generation
+    self.sub_counter += 1
+    _id = self.sub_counter # gen_id() # ! Probably requires auto-increment, more than random ID generation
+    self.subs.update({_id: {'running': False, 'kill': False}})
     frame = {'id': _id, 'type': 'start', 'payload': payload}
     self._conn.send(json.dumps(frame))
     return _id
@@ -198,7 +267,6 @@ class GraphQLClient:
   def _stop(self, _id):
     payload = {'id': _id, 'type': 'stop'}
     self._conn.send(json.dumps(payload))
-    return self._conn.recv()
   
   # * END SUBSCRIPTION functions ******************************
   # * helper methods
