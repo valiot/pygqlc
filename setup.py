@@ -4,7 +4,7 @@
 """The setup script."""
 
 from setuptools import setup, find_packages
-from src.version import version as version
+from pygqlc.version import version as version
 
 requirements = [
     # TODO: put package requirements here
