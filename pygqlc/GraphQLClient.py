@@ -1,5 +1,8 @@
 import requests
 import json
+import time
+import threading
+import websocket
 from singleton_decorator import singleton
 from tenacity import (
   retry, 
@@ -7,6 +10,8 @@ from tenacity import (
   stop_after_attempt, 
   wait_random
 )
+
+GQL_WS_SUBPROTOCOL = "graphql-ws"
 
 def has_errors(result):
   data, errors = result
@@ -51,8 +56,14 @@ print(data, errors)
 @singleton
 class GraphQLClient:
   def __init__(self):
+    # * query/mutation related attributes
     self.environments = {}
     self.environment = None
+    # * wss/subscription related attributes:
+    self.ws_url = None
+    self._conn = None
+    self._subscription_running = False
+    self._st_id = None
   
   # * with <Object> implementation
   def __enter__(self):
@@ -118,7 +129,7 @@ class GraphQLClient:
       errors = [{'message': str(e)}]
     return data, errors
   
-  # TODO: Mutation high level implementation
+  # * Mutation high level implementation
   def mutate(self, mutation, variables=None, flatten=True):
     response = {}
     data = None
@@ -136,13 +147,79 @@ class GraphQLClient:
         if (data):
           errors.extend(data.get('messages', []))
     return data, errors
-  # TODO: Subscription high level implementation
+  # * Subscription high level implementation ******************
+  def subscribe(self, query, variables=None, headers=None, callback=None):
+    # initialize websocket only once
+    if not self._conn:
+      env = self.environments.get(self.environment, None)
+      self.ws_url = env.get('wss')
+      self._conn = websocket.create_connection(
+        self.ws_url,
+        on_message=self._on_message,
+        subprotocols=[GQL_WS_SUBPROTOCOL])
+      self._conn.on_message = self._on_message
+    self._conn_init()
+    payload = {'query': query, 'variables': variables}
+    _cc = self._on_message if not callback else callback
+    _id = self._start(payload)
+    def subs(_cc):
+      self._subscription_running = True
+      while self._subscription_running:
+        r = json.loads(self._conn.recv())
+        if r['type'] == 'error' or r['type'] == 'complete':
+          print(r)
+          self.stop_subscribe(_id)
+          break
+        elif r['type'] != 'ka':
+          _cc(_id, r)
+        time.sleep(1)
+    self._st_id = threading.Thread(target=subs, args=(_cc,))
+    self._st_id.start()
+
+
+  def stop_subscribe(self, _id):
+    self._subscription_running = False
+    self._st_id.join()
+    self._stop(_id)
+
+  def close(self):
+    self._conn.close()
+  
+  def _on_message(self, message):
+    data = json.loads(message)
+    # skip keepalive messages
+    if data['type'] != 'ka':
+      print(message)
+  
+  def _conn_init(self):
+    env = self.environments.get(self.environment, None)
+    headers = env.get('headers', {})
+    payload = {
+      'type': 'connection_init',
+      'payload': headers
+    }
+    self._conn.send(json.dumps(payload))
+    self._conn.recv()
+
+  def _start(self, payload):
+    _id = '1' # gen_id() # ! Probably requires auto-increment, more than random ID generation
+    frame = {'id': _id, 'type': 'start', 'payload': payload}
+    self._conn.send(json.dumps(frame))
+    return _id
+
+  def _stop(self, _id):
+    payload = {'id': _id, 'type': 'stop'}
+    self._conn.send(json.dumps(payload))
+    return self._conn.recv()
+  
+  # * END SUBSCRIPTION functions ******************************
   # * helper methods
-  def addEnvironment(self, name, url=None, default=False):
+  def addEnvironment(self, name, url=None, wss=None, headers={}, default=False):
     self.environments.update({
       name: {
         'url': url,
-        'headers': {}
+        'wss': wss,
+        'headers': headers
       }
     })
     if default:
@@ -153,11 +230,17 @@ class GraphQLClient:
       environment = self.environment
     self.environments.update(environment, {'url': url})
   
+  def setWss(self, environment=None, url=None):
+    # if environment is not selected, use current environment
+    if not environment:
+      environment = self.environment
+    self.environments.update(environment, {'wss': url})
+  
   def addHeader(self, environment=None, header={}):
     # if environment is not selected, use current environment
     if not environment:
       environment = self.environment
-    headers = self.environments[environment].get('headers', None)
+    headers = self.environments[environment].get('headers', {})
     headers.update(header)
     self.environments[environment]['headers'].update(headers)
 

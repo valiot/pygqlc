@@ -12,6 +12,7 @@ requirements = [
     'python-dotenv',
     'pydash',
     'python-dotenv',
+    'websocket-client==0.54.0',
 ]
 
 setup_requirements = [

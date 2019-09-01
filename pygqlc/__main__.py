@@ -5,11 +5,10 @@ def main():
   gql = GraphQLClient()
   gql.addEnvironment(
       'dev',
-      os.environ.get('API'),
+      url=os.environ.get('API'),
+      wss=os.environ.get('WSS'),
+      headers={'Authorization': os.environ.get('TOKEN')},
       default=True)
-  gql.addHeader(
-      environment='dev',
-      header={'Authorization': os.environ.get('TOKEN')})
 
 if __name__ == "__main__":
   main()

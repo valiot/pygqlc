@@ -16,6 +16,7 @@ requests = "*"
 pydash = "*"
 singleton-decorator = "*"
 tenacity = "*"
+websocket-client = "==0.54.0"
 
 [requires]
 python_version = "3.7"
