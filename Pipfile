@@ -9,6 +9,7 @@ pylint = "*"
 autopep8 = "*"
 setuptools = "*"
 wheel = "*"
+twine = "*"
 
 [packages]
 requests = "*"

@@ -25,7 +25,7 @@ test_requirements = [
 
 desc = "GraphQL API Client for python language"
 setup(
-    name='pygqlc',
+    name='pygqlc-valiot',
     version=version,
     description=desc,
     author="Baruc Almaguer",
