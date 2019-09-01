@@ -13,6 +13,8 @@ requirements = [
     'pydash',
     'python-dotenv',
     'websocket-client==0.54.0',
+    'singleton-decorator',
+    'tenacity',
 ]
 
 setup_requirements = [
