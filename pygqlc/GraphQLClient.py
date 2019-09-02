@@ -184,10 +184,6 @@ class GraphQLClient:
       if starting or self.unsubscribing:
         time.sleep(0.01)
         continue
-      aborted = all(sub['kill'] for (k, sub) in self.subs.items())
-      if aborted:
-        print(f'stopping subscription routing loop')
-        break
       message = json.loads(self._conn.recv())
       if message['type'] == 'data':
         _id = py_.get(message, 'id')
@@ -196,7 +192,7 @@ class GraphQLClient:
         pass
       else:
         print(f'unknown msg type: {message}')
-      time.sleep(0.1)
+      time.sleep(0.01)
   
   def _subscription_loop(self, _cb, _id):
     self.subs[_id].update({'running': True})
@@ -207,7 +203,7 @@ class GraphQLClient:
         break
       message = safe_pop(self.subs[_id]['queue'])
       if not message:
-        time.sleep(0.1)
+        time.sleep(0.01)
         continue
       if message['type'] == 'error' or message['type'] == 'complete':
         print(f'stopping subscription {_id} on {message["type"]}')
@@ -219,7 +215,7 @@ class GraphQLClient:
         gql_msg = self._clean_sub_message(_id, message)
         _cb(gql_msg)
         self.subs[_id]['runs'] += 1 # take note of how many times this sub has been triggered
-      time.sleep(0.1)
+      time.sleep(0.01)
   
   def _clean_sub_message(self, _id, message):
     data = py_.get(message, 'payload', {})

@@ -23,7 +23,7 @@ $ >> print(pygqlc.name)
 If you get "pygqlc" printed in the python repl, the installation succeded!
 
 ### Usage
-```
+```python
 import os
 from pygqlc import GraphQLClient 
 gql = GraphQLClient()
@@ -38,7 +38,7 @@ gql.addEnvironment(
 `gql.query, gql.mutate, gql.subscribe`
 
 For queries:
-```
+```python
 query = '''
 query{
   authors{
@@ -50,7 +50,7 @@ data, errors = gql.query( query )
 ```
 
 For mutations:
-```
+```python
 create_author = '''
 mutation {
   createAuthor(){
@@ -65,7 +65,7 @@ data, errors = gql.mutate( create_author )
 
 For subscriptions:
 
-```
+```python
 def on_auth_created(message):
   print(message)
 
@@ -85,7 +85,7 @@ gql.subscribe(sub_author_created, callback=on_auth_created)
 All main methods from the API accept a `variables` param.
 it is a dictionary type and may include variables from your queries or mutations:
 
-```
+```python
 query_with_vars = '''
 query CommentsFromAuthor(
   $authorName: String!
@@ -118,7 +118,7 @@ data, errors = gql.query(
 ```
 
 There is also an optional parameter `flatten` that simplifies the response format:
-```
+```python
 # From this:
 response = {
   'data': {
@@ -147,7 +147,7 @@ to this:
 It is `query(query, variables, flatten=True)` by default, to avoid writing it down everytime
 
 The `(_, errors)` part of the response, is the combination of GraphQL errors, and communication errors, simplifying validations, it has this form:
-```
+```python
 errors = [
   {"field": <value>, "message":<msg>},
   {"field": <value>, "message":<msg>},
