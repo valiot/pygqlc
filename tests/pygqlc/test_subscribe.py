@@ -1,7 +1,6 @@
-from pygqlc import GraphQLClient
-from tests.pygqlc import subscriptions as subs
-from tests.pygqlc import mutations as muts
-# gql = GraphQLClient()
+import subscriptions as subs
+import mutations as muts
+import types
 
 def on_author_updated(msg):
   if(msg['successful']):
@@ -17,6 +16,20 @@ def on_author_created(msg):
   else:
     print(f'error creating author: {msg["messages"]}')
 
+def test_subscribe_success(gql):
+  sub_id = gql.sub_counter + 1
+  unsub_1 = gql.subscribe(subs.sub_author_updated, callback=on_author_updated)
+  assert type(unsub_1) == types.FunctionType, \
+    'subscribe should return an unsubscribe function'
+  assert len(gql.subs.items()) > 0, \
+    'There should be at least ONE subscription active'
+  assert gql.subs.get(sub_id) is not None, \
+    'The subscription did not start with the correct ID'
+
+# from pygqlc import GraphQLClient
+# from tests.pygqlc import subscriptions as subs
+# from tests.pygqlc import mutations as muts
+# gql = GraphQLClient()
 
 # unsub_1 = gql.subscribe(subs.sub_author_updated, callback=on_author_updated)
 # unsub_2 = gql.subscribe(subs.sub_author_created, callback=on_author_created)
@@ -29,3 +42,4 @@ def on_author_created(msg):
 # ! to exit:
 # >> gql.close()
 # >> exit()
+
