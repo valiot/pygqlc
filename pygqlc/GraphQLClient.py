@@ -91,20 +91,20 @@ class GraphQLClient:
   
   # * HIGH LEVEL METHODS ---------------------------------
   # TODO: Implement tenacity in query, mutation and subscription methods
-  @retry(
-    retry=(retry_if_result(has_errors)),
-    stop=stop_after_attempt(5),
-    wait=wait_random(min=0.25, max=0.5))
-  def query_wrapper(self, query, variables=None):
-    data = None
-    errors = []
-    try:
-      result = self.execute(query, variables)
-      data = result.get('data', None)
-      errors = result.get('errors', [])
-    except Exception as e:
-      errors = [{'message': str(e)}]
-    return data, errors
+  # @retry(
+  #   retry=(retry_if_result(has_errors)),
+  #   stop=stop_after_attempt(5),
+  #   wait=wait_random(min=0.25, max=0.5))
+  # def query_wrapper(self, query, variables=None):
+  #   data = None
+  #   errors = []
+  #   try:
+  #     result = self.execute(query, variables)
+  #     data = result.get('data', None)
+  #     errors = result.get('errors', [])
+  #   except Exception as e:
+  #     errors = [{'message': str(e)}]
+  #   return data, errors
   
   # * Query high level implementation
   def query(self, query, variables=None, flatten=True, single_child=False):
