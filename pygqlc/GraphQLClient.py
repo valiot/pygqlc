@@ -286,13 +286,13 @@ class GraphQLClient:
     # if environment is not selected, use current environment
     if not environment:
       environment = self.environment
-    self.environments.update(environment, {'url': url})
+    self.environments[environment].update({'url': url})
   
   def setWss(self, environment=None, url=None):
     # if environment is not selected, use current environment
     if not environment:
       environment = self.environment
-    self.environments.update(environment, {'wss': url})
+    self.environments[environment].update({'wss': url})
   
   def addHeader(self, environment=None, header={}):
     # if environment is not selected, use current environment
