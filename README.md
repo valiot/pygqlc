@@ -78,8 +78,19 @@ subscription{
   }
 }
 '''
-gql.subscribe(sub_author_created, callback=on_auth_created)
+unsub = gql.subscribe(sub_author_created, callback=on_auth_created)
+...
+# when finishing the subscription:
+unsub()
+# when finishing all subscriptions:
+gql.close()
 ```
+
+The subscribe method, returns an `unsubscribe` function,
+this allows to stop subscriptions whenever needed.
+
+After finishing all subscriptions, the method
+`GraphQLClient.close()` should be called to close correctly the open GQL/websocket connections.
 
 ### To be noted:
 All main methods from the API accept a `variables` param.
