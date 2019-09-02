@@ -239,9 +239,9 @@ class GraphQLClient:
     self.sub_counter = 0
     self.subs = {}
   
-  def _on_message(self, _id, message):
+  def _on_message(self, message):
     '''Dummy callback for subscription'''
-    print(f'message received on subscription {_id}')
+    print(f'message received on subscription:')
     print(message)
 
   def _conn_init(self):
