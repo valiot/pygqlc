@@ -13,6 +13,7 @@ def gql(request):
     headers={'Authorization': os.environ.get('TOKEN')},
     default=True)
   def finish():
+    '''Teardown function for GQL fixture'''
     gql.close()
   request.addfinalizer(finish)
   return gql
