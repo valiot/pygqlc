@@ -74,6 +74,7 @@ class GraphQLClient:
     self.subs = {} # * subscriptions running
     self.sub_counter = 0
     self.sub_router_thread = None
+    self.closing = False
     self.unsubscribing = False
   
   # * with <Object> implementation
@@ -178,8 +179,7 @@ class GraphQLClient:
     self.unsubscribing = False
   
   def _sub_routing_loop(self):
-    aborted = False
-    while not aborted:
+    while not self.closing:
       starting = len(self.subs.items()) == 0
       if starting or self.unsubscribing:
         time.sleep(0.01)
@@ -222,18 +222,20 @@ class GraphQLClient:
     return data_flatten(data) if self.subs[_id]['flatten'] else data
 
   def close(self):
+    # ! ask subscription message router to stop
+    self.closing = True
     if not self.sub_router_thread:
       print('connection not stablished, nothing to close')
       return
     for _, sub in self.subs.items():
       sub['unsub']()
-    time.sleep(1.0)
     self.sub_router_thread.join()
     self._conn.close()
     self.sub_router_thread = None
     self._conn = None
     self.sub_counter = 0
     self.subs = {}
+    self.closing = False
   
   def _on_message(self, message):
     '''Dummy callback for subscription'''

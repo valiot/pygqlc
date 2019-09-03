@@ -4,7 +4,7 @@
 """The setup script."""
 
 from setuptools import setup, find_packages
-from pygqlc.version import version as version
+from pygqlc import __version__
 
 requirements = [
     # TODO: put package requirements here
@@ -29,7 +29,7 @@ test_requirements = [
 desc = "GraphQL API Client for python language"
 setup(
     name='pygqlc',
-    version=version,
+    version=__version__,
     description=desc,
     author="Baruc Almaguer",
     author_email='baruc@valiot.io',

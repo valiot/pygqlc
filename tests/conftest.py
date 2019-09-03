@@ -2,8 +2,8 @@ import pytest
 from pygqlc import GraphQLClient # main package
 from .pygqlc import queries # tests folder
 
-@pytest.fixture(scope="module")
-def gql(request):
+@pytest.fixture(scope="session")
+def gql():
   import os
   gql = GraphQLClient()
   gql.addEnvironment(
@@ -12,8 +12,6 @@ def gql(request):
     wss=os.environ.get('WSS'),
     headers={'Authorization': os.environ.get('TOKEN')},
     default=True)
-  def finish():
-    '''Teardown function for GQL fixture'''
-    gql.close()
-  request.addfinalizer(finish)
-  return gql
+  yield gql
+  # ! Teardown for GQL fixture
+  gql.close()

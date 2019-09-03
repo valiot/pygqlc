@@ -29,7 +29,7 @@ def test_subscribe_success(gql):
 
 def test_sub_routing_loop_message(gql):
   sub_id = gql.sub_counter + 1
-  _ = gql.subscribe(subs.sub_author_updated, callback=on_author_created)
+  _ = gql.subscribe(subs.sub_author_updated, callback=on_author_updated)
   runs = gql.subs[sub_id]['runs']
   # * This should activate the subscription at least once:
   _ = gql.mutate(muts.update_any_author_active, {'name': 'Baruc', 'active': True})
