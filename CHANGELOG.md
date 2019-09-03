@@ -1,3 +1,7 @@
+## [1.0.7] - 2019-09-02
+### Fixed
+- Add long description content type to be parsed correctly by pypi
+
 ## [1.0.6] - 2019-09-02
 ### Fixed
 - Add long description to setup.py (it enables the description to display on pypi).
