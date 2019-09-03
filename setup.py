@@ -27,10 +27,14 @@ test_requirements = [
 ]
 
 desc = "GraphQL API Client for python language"
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(
     name='pygqlc',
     version=__version__,
     description=desc,
+    long_description=long_description,
     author="Baruc Almaguer",
     author_email='baruc@valiot.io',
     url='https://github.com/valiot/pygqlc',

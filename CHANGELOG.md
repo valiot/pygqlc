@@ -1,3 +1,8 @@
+## [1.0.6] - 2019-09-02
+### Fixed
+- Add long description to setup.py (it enables the description to display on pypi).
+- Went open source! follow the project at: https://github.com/valiot/pygqlc
+
 ## [1.0.5] - 2019-09-02
 ### Fixed
 - Bugfix closing procedure for GQL client (routing loop not closing properly).

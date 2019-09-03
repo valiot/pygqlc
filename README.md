@@ -2,7 +2,8 @@
 Python client for graphql APIs
 
 ### Scope
-Currently designed for Valiot's internal use only, TBD if applies as an open source project
+This is an open source project, please feel free to fork it and PR to contribute with the community!
+Repo for the project: https://github.com/valiot/pygqlc
 
 ### Installation
 Requirements:
