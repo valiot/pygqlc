@@ -31,7 +31,6 @@ q_short_params_newlines = '''
     ) {
       id
       name
-      lastName
     }
   }
 '''
@@ -44,7 +43,6 @@ q_long_opt_var_newlines = '''
     ) {
       id
       name
-      lastName
     }
   }
 '''
@@ -73,6 +71,39 @@ q_long_vars_newlines = '''
       id
       name
       lastName
+    }
+  }
+'''
+
+q_looong_query = '''
+  query LotsOfThings(
+    $limit: Int!
+  ){
+    Authors: authors(
+      limit: $limit
+      filter:{active: true}
+    ){
+      id
+      name
+      lastName
+      dateOfBirth
+      avatar{
+        imageUrl
+      }
+    }
+    bp: blogPosts{
+    id
+      t: title
+      name
+      body
+      blagger: author{
+        name
+      }
+    }
+    users{
+      id
+      name
+      email
     }
   }
 '''
