@@ -1,5 +1,5 @@
 import pydash as _py
-import queries
+from . import queries
 
 def test_query_no_errors(gql):
   _, errors = gql.query(queries.get_authors, flatten=True)

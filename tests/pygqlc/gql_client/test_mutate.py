@@ -1,5 +1,5 @@
 import pydash as py_
-import mutations
+from . import mutations
 
 def test_mutate_no_errors(gql):
   _, errors = gql.mutate(mutations.author_activate)

@@ -1,6 +1,5 @@
 import pytest
 from pygqlc import GraphQLClient # main package
-from .pygqlc import queries # tests folder
 
 @pytest.fixture(scope="session")
 def gql():

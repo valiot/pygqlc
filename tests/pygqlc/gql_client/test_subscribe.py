@@ -1,5 +1,5 @@
-import subscriptions as subs
-import mutations as muts
+from . import subscriptions as subs
+from . import mutations as muts
 import types
 import time
 

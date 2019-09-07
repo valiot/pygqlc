@@ -1,4 +1,4 @@
-import queries
+from . import queries
 def test_query_one_flatten(gql):
   data, _ = gql.query_one(queries.get_last_author)
   assert type(data) == dict, \
