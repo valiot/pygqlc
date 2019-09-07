@@ -1,5 +1,5 @@
 import re
-query_regex = r'^(query\s*\(\s*.+\s*\))?\s*{\s*(.+)\s*}'
+query_regex = r'^\s*(query)*\s*([a-zA-Z_]+[a-zA-Z_0-9]?)?\s*(\(\s*((\$[a-zA-Z_]+[a-zA-Z_0-9]\s*:\s*[a-zA-Z_]+[a-zA-Z_0-9]!?\s*)+\s*)\))?\s*{\s*(\s*((.+)?\s*(\(\s*.+\s*\))?){\s*(.+)\s*})\s*}'
 
 class QueryParser:
   def __init__(self, gql_doc):
