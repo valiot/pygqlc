@@ -12,6 +12,8 @@ from tenacity import (
   wait_random
 )
 
+from .MutationBatch import MutationBatch
+
 GQL_WS_SUBPROTOCOL = "graphql-ws"
 
 def has_errors(result):
@@ -269,6 +271,15 @@ class GraphQLClient:
     self._conn.send(json.dumps(payload))
   
   # * END SUBSCRIPTION functions ******************************
+
+  # * BATCH functions *****************************************
+  def batchMutate(self, label='mutation'):
+    return MutationBatch(client=self, label=label)
+  
+  def batchQuery(self, label='query'):
+    return MutationBatch(client=self, label=label)
+
+  # * END BATCH function **************************************
   # * helper methods
   def addEnvironment(self, name, url=None, wss=None, headers={}, default=False):
     self.environments.update({
