@@ -1,3 +1,7 @@
+## [1.1.0] - 2019-09-10
+### Added
+- Add batchMutation functionality (group several labeled mutations in a single transmission)
+
 ## [1.0.8] - 2019-09-02
 ### Fixed
 - Add long description content type to be parsed correctly by pypi
