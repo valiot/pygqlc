@@ -20,6 +20,11 @@ class MutationParser:
     self.content = None
 
   def parse(self):
+    # ! First, remove variable definitions:
+    doc = self.gql_doc
+    var_end = doc.find('{')
+    short_doc = doc[var_end:]
+    self.gql_doc = f'mutation {short_doc}'
     if self.validate():
       self.full_doc = self.match.group(rgx_groups['full_doc'])
       self.alias = self.match.group(rgx_groups['alias'])
@@ -40,5 +45,7 @@ class MutationParser:
       return f'"{value}"'
     elif type(value) == bool:
       return f'{"true" if value else "false"}'
+    elif type(value) == type(None):
+      return 'null'
     else:
       return str(value)

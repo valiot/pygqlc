@@ -1,3 +1,8 @@
+## [1.1.1] - 2019-09-10
+### Fixed
+- Strip variable definition from mutation previous to Regex parsing to improve performance
+- Convert to "null" when variable is None
+
 ## [1.1.0] - 2019-09-10
 ### Added
 - Add batchMutation functionality (group several labeled mutations in a single transmission)
