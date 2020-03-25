@@ -173,6 +173,9 @@ class GraphQLClient:
     return unsubscribe
   
   def _unsubscribe(self, _id):
+    if not self.subs.get(_id):
+      print('Subscription already cleared')
+      return
     self.unsubscribing = True
     self.subs[_id]['kill'] = True
     self._stop(_id)
@@ -186,6 +189,15 @@ class GraphQLClient:
       if starting or self.unsubscribing:
         time.sleep(0.01)
         continue
+      # this guy can handle unsubscriptions from another thread:
+      to_del = []
+      for sub_id, sub in self.subs.items():
+        if sub['kill'] or not sub['running']:
+          print(f'deleting halted subscription (id: {sub_id})')
+          sub['thread'].join()
+          to_del.append(sub_id)
+      for sub_id in to_del:
+        del self.subs[sub_id]
       message = json.loads(self._conn.recv())
       if message['type'] == 'data':
         _id = py_.get(message, 'id')
@@ -207,17 +219,25 @@ class GraphQLClient:
       if not message:
         time.sleep(0.01)
         continue
+      errors = py_.get(message, 'payload.errors', [])
       if message['type'] == 'error' or message['type'] == 'complete':
         print(f'stopping subscription {_id} on {message["type"]}')
         break
       if message['type'] == 'connection_ack' or message['type'] == 'ka':
         pass
+      elif len(errors) > 0:
+        # ! Error creating subscription, abort it:
+        error_msg = py_.get(errors, '0.message', '')
+        print(f'Error creating subscription{error_msg and ":"}\n{error_msg}')
+        break
       else:
         # * GraphQL message received, proccess it:
         gql_msg = self._clean_sub_message(_id, message)
         _cb(gql_msg)
         self.subs[_id]['runs'] += 1 # take note of how many times this sub has been triggered
       time.sleep(0.01)
+    # ! subscription stopped, due to error or user event
+    self.subs[_id].update({'running': False, 'kill': True})
   
   def _clean_sub_message(self, _id, message):
     data = py_.get(message, 'payload', {})
@@ -260,7 +280,7 @@ class GraphQLClient:
 
   def _start(self, payload):
     self.sub_counter += 1
-    _id = str(self.sub_counter) # gen_id() # ! Probably requires auto-increment, more than random ID generation
+    _id = str(self.sub_counter)
     self.subs.update({_id: {'running': False, 'kill': False}})
     frame = {'id': _id, 'type': 'start', 'payload': payload}
     self._conn.send(json.dumps(frame))
