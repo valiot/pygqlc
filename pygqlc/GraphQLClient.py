@@ -260,7 +260,7 @@ class GraphQLClient:
 
   def _start(self, payload):
     self.sub_counter += 1
-    _id = self.sub_counter # gen_id() # ! Probably requires auto-increment, more than random ID generation
+    _id = str(self.sub_counter) # gen_id() # ! Probably requires auto-increment, more than random ID generation
     self.subs.update({_id: {'running': False, 'kill': False}})
     frame = {'id': _id, 'type': 'start', 'payload': payload}
     self._conn.send(json.dumps(frame))
