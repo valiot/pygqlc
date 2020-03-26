@@ -1,3 +1,8 @@
+## [1.1.2] - 2020-03-26
+### Fixed
+- Websockets now send String ID instead of Int (for compatibility with Hasura and Apollo WS docs compliance)
+- Reconnection to subscriptions when connection lost
+
 ## [1.1.1] - 2019-09-10
 ### Fixed
 - Strip variable definition from mutation previous to Regex parsing to improve performance

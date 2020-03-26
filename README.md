@@ -79,6 +79,7 @@ subscription{
   }
 }
 '''
+# unsub may be None if subscription fails (no internet connection, host unreachable, bad subscription doc, etc)
 unsub = gql.subscribe(sub_author_created, callback=on_auth_created)
 ...
 # when finishing the subscription:
