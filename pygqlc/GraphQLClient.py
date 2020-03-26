@@ -150,22 +150,26 @@ class GraphQLClient:
           errors.extend(data.get('messages', []))
     return data, errors
   # * Subscription high level implementation ******************
-  def subscribe(self, query, variables=None, callback=None, flatten=True):
+  def subscribe(self, query, variables=None, callback=None, flatten=True, _id=None):
     # ! initialize websocket only once
     if not self._conn:
-      env = self.environments.get(self.environment, None)
-      self.ws_url = env.get('wss')
-      self._conn = websocket.create_connection(self.ws_url,subprotocols=[GQL_WS_SUBPROTOCOL])
-      print('No connection found, created.')
+      if self._new_conn():
+        pass # print('No connection found, created.')
+      else:
+        print('Error creating WSS connection for subscription')
+        return None
     self._conn_init()
     payload = {'query': query, 'variables': variables}
     _cb = callback if callback is not None else self._on_message
-    _id = self._start(payload)
+    _id = self._start(payload, _id)
     self.subs[_id].update({
       'thread': threading.Thread(target=self._subscription_loop, args=(_cb, _id)),
       'flatten': flatten,
       'queue': [],
       'runs': 0,
+      'query': query,
+      'variables': variables,
+      'callback': callback
     })
     self.subs[_id]['thread'].start()
     # ! Create unsubscribe function for this specific thread:
@@ -192,11 +196,18 @@ class GraphQLClient:
   def _sub_routing_loop(self):
     while not self.closing:
       if (self.wss_conn_halted):
-        print('Connection halted, checking internet connection...')
-        time.sleep(1.0)
+        print('Connection halted, attempting reconnection...')
+        if self._new_conn():
+          self.wss_conn_halted = False
+          print('WSS Reconnection succeeded, attempting resubscription to lost subs')
+          self._resubscribe_all()
+          print('finished resubscriptions')
+        else:
+          time.sleep(1.0)
+          continue
       starting = len(self.subs.items()) == 0
       if starting or self.unsubscribing:
-        time.sleep(0.1)
+        time.sleep(0.01)
         continue
       # this guy can handle unsubscriptions from another thread:
       to_del = []
@@ -208,12 +219,10 @@ class GraphQLClient:
       for sub_id in to_del:
         del self.subs[sub_id]
       try:
-        print('Trying to receive WSS message...')
         message = json.loads(self._conn.recv())
       except TimeoutError as e:
-        print('Timeout for WSS message exceeded, will retry later...')
+        print('Timeout for WSS message exceeded...')
         print(f'original message: {e}')
-        message = ''
         self.wss_conn_halted = True
         continue
       if message['type'] == 'data':
@@ -223,7 +232,26 @@ class GraphQLClient:
         pass
       else:
         print(f'unknown msg type: {message}')
-      time.sleep(0.1)
+      time.sleep(0.01)
+  
+  def _resubscribe_all(self):
+    # first, clear every subscription thread running:
+    for sub_id in self.subs.keys():
+      self.subs[sub_id]['kill'] = True  # Signal threads to stop
+    # wait for every thread to finish
+    for sub_id in self.subs.keys():
+      print(f'killing halted subscription (id={sub_id})')
+      self.subs[sub_id]['thread'].join()
+    # attempt re-join:
+    old_subs = self.subs
+    for sub_id in old_subs.keys():
+      self.subscribe(
+        query=old_subs[sub_id]['query'],
+        variables=old_subs[sub_id]['variables'],
+        callback=old_subs[sub_id]['callback'],
+        flatten=old_subs[sub_id]['flatten'],
+        _id=sub_id,
+      )
   
   def _subscription_loop(self, _cb, _id):
     self.subs[_id].update({'running': True})
@@ -261,6 +289,16 @@ class GraphQLClient:
     data = py_.get(message, 'payload', {})
     return data_flatten(data) if self.subs[_id]['flatten'] else data
 
+  def _new_conn(self):
+    env = self.environments.get(self.environment, None)
+    self.ws_url = env.get('wss')
+    try:
+      self._conn = websocket.create_connection(self.ws_url, subprotocols=[GQL_WS_SUBPROTOCOL])
+      return True
+    except:
+      print(f'Failed connecting to {self.ws_url}')
+      return False
+
   def close(self):
     # ! ask subscription message router to stop
     self.closing = True
@@ -296,9 +334,10 @@ class GraphQLClient:
       self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
       self.sub_router_thread.start()
 
-  def _start(self, payload):
-    self.sub_counter += 1
-    _id = str(self.sub_counter)
+  def _start(self, payload, _id=None):
+    if not _id:
+      self.sub_counter += 1
+      _id = str(self.sub_counter)
     self.subs.update({_id: {'running': False, 'kill': False}})
     frame = {'id': _id, 'type': 'start', 'payload': payload}
     self._conn.send(json.dumps(frame))
