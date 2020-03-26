@@ -76,6 +76,7 @@ class GraphQLClient:
     self.subs = {} # * subscriptions running
     self.sub_counter = 0
     self.sub_router_thread = None
+    self.wss_conn_halted = False
     self.closing = False
     self.unsubscribing = False
   
@@ -155,6 +156,7 @@ class GraphQLClient:
       env = self.environments.get(self.environment, None)
       self.ws_url = env.get('wss')
       self._conn = websocket.create_connection(self.ws_url,subprotocols=[GQL_WS_SUBPROTOCOL])
+      print('No connection found, created.')
     self._conn_init()
     payload = {'query': query, 'variables': variables}
     _cb = callback if callback is not None else self._on_message
@@ -178,16 +180,23 @@ class GraphQLClient:
       return
     self.unsubscribing = True
     self.subs[_id]['kill'] = True
-    self._stop(_id)
+    try:
+      self._stop(_id)
+    except BrokenPipeError as e:
+      print('WSS Pipe broken, nothing to stop')
+      print(f'original message: {e}')
     self.subs[_id]['thread'].join()
     self.subs[_id].update({'running': False})
     self.unsubscribing = False
   
   def _sub_routing_loop(self):
     while not self.closing:
+      if (self.wss_conn_halted):
+        print('Connection halted, checking internet connection...')
+        time.sleep(1.0)
       starting = len(self.subs.items()) == 0
       if starting or self.unsubscribing:
-        time.sleep(0.01)
+        time.sleep(0.1)
         continue
       # this guy can handle unsubscriptions from another thread:
       to_del = []
@@ -198,7 +207,15 @@ class GraphQLClient:
           to_del.append(sub_id)
       for sub_id in to_del:
         del self.subs[sub_id]
-      message = json.loads(self._conn.recv())
+      try:
+        print('Trying to receive WSS message...')
+        message = json.loads(self._conn.recv())
+      except TimeoutError as e:
+        print('Timeout for WSS message exceeded, will retry later...')
+        print(f'original message: {e}')
+        message = ''
+        self.wss_conn_halted = True
+        continue
       if message['type'] == 'data':
         _id = py_.get(message, 'id')
         self.subs[_id]['queue'].append(message)
@@ -206,7 +223,7 @@ class GraphQLClient:
         pass
       else:
         print(f'unknown msg type: {message}')
-      time.sleep(0.01)
+      time.sleep(0.1)
   
   def _subscription_loop(self, _cb, _id):
     self.subs[_id].update({'running': True})
@@ -237,6 +254,7 @@ class GraphQLClient:
         self.subs[_id]['runs'] += 1 # take note of how many times this sub has been triggered
       time.sleep(0.01)
     # ! subscription stopped, due to error or user event
+    print(f'Subscription {_id} stopped')
     self.subs[_id].update({'running': False, 'kill': True})
   
   def _clean_sub_message(self, _id, message):
