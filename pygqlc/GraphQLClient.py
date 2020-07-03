@@ -349,7 +349,28 @@ class GraphQLClient:
   def _stop(self, _id):
     payload = {'id': _id, 'type': 'stop'}
     self._conn.send(json.dumps(payload))
-  
+
+  def resetSubsConnection(self):
+    if (self.wss_conn_halted): #check if Connection halted in _sub_routing_loop()
+      print('Reconnection is already trying')
+      return True
+    if not self.sub_router_thread:
+      print('connection not stablished, nothing to reset')
+      return False
+    if self.sub_router_thread.isAlive(): #check that _sub_routing_loop() is running
+      self.wss_conn_halted = True 
+    else: # in case for some reason _sub_routing_loop() is not running 
+      if self._new_conn():
+        print('WSS Reconnection succeeded, attempting resubscription to lost subs')
+        self._resubscribe_all()
+        print('finished resubscriptions')
+        self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
+        self.sub_router_thread.start() #start again _sub_routing_loop()
+      else:
+        print('Reconnection has not been possible')
+        return False
+    return True
+
   # * END SUBSCRIPTION functions ******************************
 
   # * BATCH functions *****************************************
