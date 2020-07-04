@@ -351,9 +351,6 @@ class GraphQLClient:
     self._conn.send(json.dumps(payload))
 
   def resetSubsConnection(self):
-    if (self.wss_conn_halted): #check if Connection halted in _sub_routing_loop()
-      print('Reconnection is already trying')
-      return True
     if not self.sub_router_thread:
       print('connection not stablished, nothing to reset')
       return False
