@@ -380,7 +380,7 @@ class GraphQLClient:
 
   # * END BATCH function **************************************
   # * helper methods
-  def addEnvironment(self, name, url=None, wss=None, headers={}, default=False, timeoutWebsocket=None):
+  def addEnvironment(self, name, url=None, wss=None, headers={}, default=False, timeoutWebsocket=60):
     self.environments.update({
       name: {
         'url': url,
