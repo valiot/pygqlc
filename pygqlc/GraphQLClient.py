@@ -221,7 +221,7 @@ class GraphQLClient:
         del self.subs[sub_id]
       try:
         message = json.loads(self._conn.recv())
-      except websocket.WebSocketTimeoutException as e:
+      except (TimeoutError, websocket.WebSocketTimeoutException) as e:
         print('Timeout for WSS message exceeded...')
         print(f'original message: {e}')
         self.wss_conn_halted = True
