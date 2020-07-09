@@ -390,8 +390,7 @@ class GraphQLClient:
     })
     if default:
       self.setEnvironment(name)
-    if timeoutWebsocket:
-      self.setTimeoutWebsocket(timeoutWebsocket)
+    self.setTimeoutWebsocket(timeoutWebsocket)
 
   def setUrl(self, environment=None, url=None):
     # if environment is not selected, use current environment
