@@ -79,7 +79,7 @@ class GraphQLClient:
     self.wss_conn_halted = False
     self.closing = False
     self.unsubscribing = False
-    self.websocket_timeout = None
+    self.websocket_timeout = 60
   
   # * with <Object> implementation
   def __enter__(self):
