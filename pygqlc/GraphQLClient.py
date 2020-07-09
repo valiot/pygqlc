@@ -79,6 +79,7 @@ class GraphQLClient:
     self.wss_conn_halted = False
     self.closing = False
     self.unsubscribing = False
+    self.websocket_timeout = 60
   
   # * with <Object> implementation
   def __enter__(self):
@@ -220,7 +221,7 @@ class GraphQLClient:
         del self.subs[sub_id]
       try:
         message = json.loads(self._conn.recv())
-      except TimeoutError as e:
+      except (TimeoutError, websocket.WebSocketTimeoutException) as e:
         print('Timeout for WSS message exceeded...')
         print(f'original message: {e}')
         self.wss_conn_halted = True
@@ -294,6 +295,8 @@ class GraphQLClient:
     self.ws_url = env.get('wss')
     try:
       self._conn = websocket.create_connection(self.ws_url, subprotocols=[GQL_WS_SUBPROTOCOL])
+      if self.websocket_timeout:
+        self._conn.settimeout(self.websocket_timeout)
       return True
     except:
       print(f'Failed connecting to {self.ws_url}')
@@ -346,7 +349,26 @@ class GraphQLClient:
   def _stop(self, _id):
     payload = {'id': _id, 'type': 'stop'}
     self._conn.send(json.dumps(payload))
-  
+
+  def resetSubsConnection(self):
+    if not self.sub_router_thread:
+      print('connection not stablished, nothing to reset')
+      return False
+    if self.sub_router_thread.isAlive(): #check that _sub_routing_loop() is running
+      self.wss_conn_halted = True
+      return True
+    # in case for some reason _sub_routing_loop() is not running 
+    if self._new_conn():
+      print('WSS Reconnection succeeded, attempting resubscription to lost subs')
+      self._resubscribe_all()
+      print('finished resubscriptions')
+      self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
+      self.sub_router_thread.start() #start again _sub_routing_loop()
+      return True
+    else:
+      print('Reconnection has not been possible')
+      return False
+
   # * END SUBSCRIPTION functions ******************************
 
   # * BATCH functions *****************************************
@@ -358,7 +380,7 @@ class GraphQLClient:
 
   # * END BATCH function **************************************
   # * helper methods
-  def addEnvironment(self, name, url=None, wss=None, headers={}, default=False):
+  def addEnvironment(self, name, url=None, wss=None, headers={}, default=False, timeoutWebsocket=60):
     self.environments.update({
       name: {
         'url': url,
@@ -368,6 +390,8 @@ class GraphQLClient:
     })
     if default:
       self.setEnvironment(name)
+    self.setTimeoutWebsocket(timeoutWebsocket)
+
   def setUrl(self, environment=None, url=None):
     # if environment is not selected, use current environment
     if not environment:
@@ -393,6 +417,11 @@ class GraphQLClient:
     if not env:
       raise Exception(f'selected environment not set ({name})')
     self.environment = name
+
+  def setTimeoutWebsocket(self, seconds):
+    self.websocket_timeout =  seconds
+    if self._conn:
+      self._conn.settimeout(self.websocket_timeout)
 
   # * LOW LEVEL METHODS ----------------------------------
   def execute(self, query, variables=None):

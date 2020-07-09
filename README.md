@@ -94,6 +94,8 @@ this allows to stop subscriptions whenever needed.
 After finishing all subscriptions, the method
 `GraphQLClient.close()` should be called to close correctly the open GQL/websocket connections.
 
+To reset all subscriptions and websocket connection use the method `GraphQLClient.resetSubsConnection()`.
+
 ### To be noted:
 All main methods from the API accept a `variables` param.
 it is a dictionary type and may include variables from your queries or mutations:
@@ -183,3 +185,8 @@ mutation{
   }
 }
 ```
+
+### Websocket timeout:
+You can set a websocket timeout to keep subscriptions alive. 
+
+Use `gql.setTimeoutWebsocket(seconds)`, or directly in the environment `gql.addEnvironment(timeoutWebsocket=seconds)`. Default timeoutWebsocket is 60 seconds

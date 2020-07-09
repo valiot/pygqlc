@@ -1,3 +1,10 @@
+## [1.2.0] - 2020-07-08
+### Added
+- Configuration parameter websocketTimeout to be used when the connection is halted
+- Method reset all subscriptions and websocket connection
+### Fixed
+- Websocket reconnection when halted with WebSocketTimeoutException
+
 ## [1.1.2] - 2020-03-26
 ### Fixed
 - Websockets now send String ID instead of Int (for compatibility with Hasura and Apollo WS docs compliance)
