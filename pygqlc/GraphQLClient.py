@@ -612,6 +612,20 @@ class GraphQLClient:
 
   # * LOW LEVEL METHODS ----------------------------------
   def execute(self, query, variables=None):
+    """This function executes the intructions of a query or mutation.
+
+    Args:
+        query (string): Graphql instructions.
+        variables (string, optional): Variables of the transaction. Defaults
+         to None.
+
+    Raises:
+        Exception: There is not setted a main environment.
+        Exception: Transactions format error.
+
+    Returns:
+        [JSON]: Raw GraphqlResponse.
+    """
     data = {
       'query': query,
       'variables': variables
