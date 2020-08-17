@@ -421,6 +421,9 @@ class GraphQLClient(metaclass=Singleton):
       return False
 
   def close(self):
+    """This function ends and resets all subscriptions and related attributes
+     to their default values.
+    """
     # ! ask subscription message router to stop
     self.closing = True
     if not self.sub_router_thread:
@@ -469,6 +472,11 @@ class GraphQLClient(metaclass=Singleton):
     self._conn.send(json.dumps(payload))
 
   def resetSubsConnection(self):
+    """This function resets all subscriptions connections.
+
+    Returns:
+        (boolean): Returns if the reconnection has been possible.
+    """
     if not self.sub_router_thread:
       print('connection not stablished, nothing to reset')
       return False
