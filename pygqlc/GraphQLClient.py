@@ -67,24 +67,6 @@ def safe_pop(data, index=0, default=None):
   else:
     return default
 
-# ! Example With:
-'''
-client = GraphQLClient()
-with client.enterEnvironment('dev') as gql:
-    data, errors = gql.query('{lines(limit:2){id}}')
-    print(data, errors)
-'''
-
-# ! Example setEnvironment:
-'''
-client = GraphQLClient()
-client.addEnvironment('dev', "https://heineken.valiot.app/")
-client.addHeader(
-    environment='dev', 
-    header={'Authorization': dev_token})
-data, errors = gql.query('{lines(limit:2){id}}')
-print(data, errors)
-'''
 
 class GraphQLClient(metaclass=Singleton):
   def __init__(self):
