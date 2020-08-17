@@ -215,6 +215,16 @@ class GraphQLClient:
 
   # * Query high level implementation
   def query_one(self, query, variables=None):
+      """This function makes a single child query.
+
+    Args:
+        query (string): Graphql query instructions.
+        variables (string, optional): Query variables. Defaults to None.
+
+
+    Returns:
+        [GraphqlResponse]: Returns the GraphqlResponse of the query.
+    """
     return self.query(query, variables, flatten=True, single_child=True)
   
   # * Mutation high level implementation
