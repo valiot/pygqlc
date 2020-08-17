@@ -43,7 +43,7 @@ from .MutationBatch import MutationBatch
 GQL_WS_SUBPROTOCOL = "graphql-ws"
 
 def has_errors(result):
-  """This function checks if the data of a transaction has any errors.
+  """This function checks if a GqlResponse has any errors.
 
   Args:
       result (GqlResponse):  [data, errors]
@@ -55,6 +55,17 @@ def has_errors(result):
   return len(errors) > 0
 
 def data_flatten(data, single_child=False):
+  """This function formats the data structure of a GqlResponse in a
+  simple dictionary.
+
+  Args:
+      data (dict, list): The data of a GqlResponse.
+      single_child (bool, optional): If a data has only one element.
+      Defaults to False.
+
+  Returns:
+      [dict]: Returns a formatted data.
+  """
   if type(data) == dict:
     keys = list(data.keys())
     if len(keys) == 1:
