@@ -153,6 +153,14 @@ class GraphQLClient(metaclass=Singleton):
     return
   
   def enterEnvironment(self, name):
+      """This function makes a safe access to an environment.
+
+      Args:
+          name (string): Name of the environment.
+
+      Returns:
+          [object]: Returns self instance for the use with `with` keyword.
+      """
     self.save_env = self.environment
     self.environment = name
     return self # * for use with "with" keyword
