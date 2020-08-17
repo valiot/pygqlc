@@ -55,12 +55,11 @@ def has_errors(result):
   return len(errors) > 0
 
 def data_flatten(data, single_child=False):
-  """This function formats the data structure of a GqlResponse in a
-  simple dictionary.
+  """This function formats the data structure of a GqlResponse.
 
   Args:
       data (dict, list): The data of a GqlResponse.
-      single_child (bool, optional): If a data has only one element.
+      single_child (bool, optional): Checks if the data has only one element.
       Defaults to False.
 
   Returns:
@@ -189,7 +188,7 @@ class GraphQLClient(metaclass=Singleton):
     Args:
         query (string): Graphql query instructions.
         variables (string, optional): Query variables. Defaults to None.
-        flatten (bool, optional): GCheck if GraphqlResponse should be flatten or
+        flatten (bool, optional): Check if GraphqlResponse should be flatten or
          not. Defaults to True.
         single_child (bool, optional): Check if GraphqlResponse only has one
          element. Defaults to False.
@@ -228,6 +227,17 @@ class GraphQLClient(metaclass=Singleton):
   
   # * Mutation high level implementation
   def mutate(self, mutation, variables=None, flatten=True):
+    """This function makes a mutation transaction to the actual environment.
+
+    Args:
+        mutation (string): Graphql mutation instructions.
+        variables (string, optional): Mutation variables. Defaults to None.
+        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+         not. Defaults to True.
+
+    Returns:
+        [GraphqlResponse]: Returns the GraphqlResponse of the mutation.
+    """
     response = {}
     data = None
     errors = []
