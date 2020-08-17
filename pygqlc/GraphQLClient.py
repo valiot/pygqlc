@@ -499,9 +499,25 @@ class GraphQLClient(metaclass=Singleton):
 
   # * BATCH functions *****************************************
   def batchMutate(self, label='mutation'):
+    """This fuction makes a batchs of mutation transactions.
+
+    Args:
+        label (str, optional): Name of the mutation batch. Defaults to 'mutation'.
+
+    Returns:
+        (MutationBatch): Returns a MutationBatch Object.
+    """
     return MutationBatch(client=self, label=label)
   
   def batchQuery(self, label='query'):
+    """This fuction makes a batchs of query transactions.
+
+    Args:
+        label (str, optional): Name of the query batch. Defaults to 'query'.
+
+    Returns:
+        (MutationBatch): Returns a MutationBatch Object.
+    """
     return MutationBatch(client=self, label=label)
 
   # * END BATCH function **************************************
