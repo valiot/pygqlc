@@ -40,6 +40,15 @@ from .MutationBatch import MutationBatch
 GQL_WS_SUBPROTOCOL = "graphql-ws"
 
 def has_errors(result):
+  """This function checks if the data of a query or mutation have any errors.
+
+  Args:
+      result (transaction): It has the data of the transaction and a
+      list of possible errors.
+
+  Returns:
+      [boolean]: Returns `True` if a transaction has at least one error.
+  """
   _, errors = result
   return len(errors) > 0
 
