@@ -561,7 +561,7 @@ class GraphQLClient:
     self.environments[environment].update({'url': url})
   
   def setWss(self, environment=None, url=None):
-    """This function setes a new WSS to an existing environment.
+    """This function sets a new WSS to an existing environment.
 
     Args:
         environment (string, optional): Name of the environment. Defaults to None.
@@ -587,6 +587,14 @@ class GraphQLClient:
     self.environments[environment]['headers'].update(headers)
 
   def setEnvironment(self, name):
+    """This functions sets the actual environment of the instance.
+
+    Args:
+        name (string): Name of the environment.
+
+    Raises:
+        Exception: The environment's name doesn't exists in the environment list.
+    """
     env = self.environments.get(name, None)
     if not env:
       raise Exception(f'selected environment not set ({name})')
