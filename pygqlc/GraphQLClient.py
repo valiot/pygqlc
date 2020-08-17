@@ -84,6 +84,17 @@ def data_flatten(data, single_child=False):
     return data # ! not a dict, nothing to flatten
 
 def safe_pop(data, index=0, default=None):
+  """This function pops safetly a GqlResponse from a subscription queue.
+
+  Args:
+      data (list): Is the list of GqlResponse that caught the subscription.
+      index (int, optional): Index of the subscription queue. Defaults to 0.
+      default (None, optional): Define the default message. Defaults to None.
+
+  Returns:
+      [GqlResponse]: Returns the GqlResponse. If the subscription queue is 
+      empty, it returns the default message.
+  """
   if len(data) > 0:
     return data.pop(index)
   else:
