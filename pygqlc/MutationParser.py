@@ -27,6 +27,10 @@ class MutationParser:
         match (Match Object): Match object of the pattern and doc. Defaults to
           None.
         isValid (boolean): Checks if the gql_doc is valid. Defaults to False.
+        full_doc (string): All Graphql instructions.
+        alias (string): Name of the transaction.
+        variables (string): Variables of the transaction.
+        content (content): The transaction content.
     """
     self.re = re
     self.regex = mutation_regex
@@ -39,7 +43,7 @@ class MutationParser:
     self.content = None
 
   def parse(self):
-    """This fuction parses and validates the transaction instructions.
+    """This fuction parses and validates the transaction instructions.3
 
     Returns:
         (boolean): Returns if the parsed doc was succesful.
