@@ -573,6 +573,12 @@ class GraphQLClient:
     self.environments[environment].update({'wss': url})
   
   def addHeader(self, environment=None, header={}):
+    """This function updates the header of an existing environment.
+
+    Args:
+        environment (string, optional): Name of the environment. Defaults to None.
+        header (dict, optional): New headers to add. Defaults to {}.
+    """
     # if environment is not selected, use current environment
     if not environment:
       environment = self.environment
