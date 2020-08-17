@@ -77,10 +77,19 @@ TypeError: replace() argument 2 must be str, not int
 
 from .MutationParser import MutationParser
 from pprint import pprint
+
+"""The porpuse of this module is batch and execute a graphql transaction, such
+ as a query or mutation. 
+"""
 class InvalidMutationException(Exception):
+  """This is class is to define the InvalidMutationException
+  """
   pass
 
 class MutationBatch:
+  """This is the mutation batch class, it can generate and execute a batch of
+   graphql's transaction.
+  """
   def __init__(self, client=None, label='mutation'):
     self.client = client
     self.start_tag = 'mutation BatchMutation {'
