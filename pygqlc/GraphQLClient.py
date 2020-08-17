@@ -14,25 +14,28 @@ from tenacity import (
 """
 This module has the general purpose of defining the GraphQLClient class 
 and all its methods.
+
+    GQLResponse [type variable]: [data[field(string)], errors[message(string),
+    field?(string)]
   
-  Examples of make an instance of GraphQLClient:
-      `With` clause:
-          '''
-          client = GraphQLClient()
-          with client.enterEnvironment('dev') as gql:
-              data, errors = gql.query('{lines(limit:2){id}}')
-              print(data, errors)
-          '''
-      `setEnvironment`:
-          '''
-          client = GraphQLClient()
-          client.addEnvironment('dev', "https://heineken.valiot.app/")
-          client.addHeader(
-              environment='dev', 
-              header={'Authorization': dev_token})
-          data, errors = gql.query('{lines(limit:2){id}}')
-          print(data, errors)
-          '''
+    Examples of make an instance of GraphQLClient:
+        `With` clause:
+            '''
+            client = GraphQLClient()
+            with client.enterEnvironment('dev') as gql:
+                data, errors = gql.query('{lines(limit:2){id}}')
+                print(data, errors)
+            '''
+        `setEnvironment`:
+            '''
+            client = GraphQLClient()
+            client.addEnvironment('dev', "https://heineken.valiot.app/")
+            client.addHeader(
+                environment='dev',
+                header={'Authorization': dev_token})
+            data, errors = gql.query('{lines(limit:2){id}}')
+            print(data, errors)
+            '''
 """
 
 from .MutationBatch import MutationBatch
@@ -40,11 +43,10 @@ from .MutationBatch import MutationBatch
 GQL_WS_SUBPROTOCOL = "graphql-ws"
 
 def has_errors(result):
-  """This function checks if the data of a query or mutation have any errors.
+  """This function checks if the data of a transaction has any errors.
 
   Args:
-      result (transaction): It has the data of the transaction and a
-      list of possible errors.
+      result (GqlResponse):  [data, errors]
 
   Returns:
       [boolean]: Returns `True` if a transaction has at least one error.
