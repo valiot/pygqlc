@@ -49,7 +49,7 @@ def has_errors(result):
       result (GqlResponse):  [data, errors]
 
   Returns:
-      [boolean]: Returns `True` if a transaction has at least one error.
+      (boolean): Returns `True` if a transaction has at least one error.
   """
   _, errors = result
   return len(errors) > 0
@@ -63,7 +63,7 @@ def data_flatten(data, single_child=False):
       Defaults to False.
 
   Returns:
-      [dict]: Returns a formatted data.
+      (dict): Returns a formatted data.
   """
   if type(data) == dict:
     keys = list(data.keys())
@@ -109,24 +109,24 @@ class GraphQLClient:
       """Constructor of the GraphQlClient object.
 
       Attributes:
-          environments [dict]: Dictonary with all envieroments. Defaults to
+          environments (dict): Dictonary with all envieroments. Defaults to
           empty dict.
-          environment [dict]: Dictionary with the data of the actual enviroment.
+          environment (dict): Dictionary with the data of the actual enviroment.
           Defaults to None.
-          ws_url [string]: String with the WSS url. Defaults to None.
-          subs [dict]: Dictionary with all active subscriptions in the instance.
+          ws_url (string): String with the WSS url. Defaults to None.
+          subs (dict): Dictionary with all active subscriptions in the instance.
           Defaults to empty dict.
-          sub_counter [int]: Count of active subscriptions in the instance.
+          sub_counter (int): Count of active subscriptions in the instance.
           Defaults to 0.
-          sub_router_thread [thread]: Thread with all subscription logic.
+          sub_router_thread (thread): Thread with all subscription logic.
           Defaults to None.
-          wss_conn_halted [boolean]: Checks if the wss connection is halted.
+          wss_conn_halted (boolean): Checks if the wss connection is halted.
           Defaults to False.
-          closing [boolean]: Checks if all subscriptions were successfully closed.
+          closing (boolean): Checks if all subscriptions were successfully closed.
           Defaults to False.
-          unsubscribing [boolean]: Checks if all subscriptions were successfully
+          unsubscribing (boolean): Checks if all subscriptions were successfully
           canceled. Defaults to False.
-          websocket_timeout [int]: seconds of the websocket timeout. Defaults to
+          websocket_timeout (int): seconds of the websocket timeout. Defaults to
           60.
       """
     # * query/mutation related attributes
@@ -159,7 +159,7 @@ class GraphQLClient:
           name (string): Name of the environment.
 
       Returns:
-          [object]: Returns self instance for the use with `with` keyword.
+          (self): Returns self instance for the use with `with` keyword.
       """
     self.save_env = self.environment
     self.environment = name
@@ -195,7 +195,7 @@ class GraphQLClient:
          element. Defaults to False.
 
     Returns:
-        [GraphqlResponse]: Returns the GraphqlResponse of the query.
+        (GraphqlResponse): Returns the GraphqlResponse of the query.
     """
     data = None
     errors = []
@@ -222,7 +222,7 @@ class GraphQLClient:
 
 
     Returns:
-        [GraphqlResponse]: Returns the GraphqlResponse of the query.
+        (GraphqlResponse): Returns the GraphqlResponse of the query.
     """
     return self.query(query, variables, flatten=True, single_child=True)
   
@@ -237,7 +237,7 @@ class GraphQLClient:
          not. Defaults to True.
 
     Returns:
-        [GraphqlResponse]: Returns the GraphqlResponse of the mutation.
+        (GraphqlResponse): Returns the GraphqlResponse of the mutation.
     """
     response = {}
     data = None
@@ -262,14 +262,14 @@ class GraphQLClient:
     Args:
         query (string): Graphql subscription instructions.
         variables (string, optional): Subscription variables. Defaults to None.
-        callback (method, optional): Trigger method of the subscription.
+        callback (function, optional): Trigger function of the subscription.
          Defaults to None.
         flatten (bool, optional): Check if GraphqlResponse should be flatten or
          not. Defaults to True.
         _id (int, optional): Subscription id. Defaults to None.
 
     Returns:
-        [GraphqlResponse]: Returns the GraphqlResponse of the subscription.
+        (GraphqlResponse): Returns the GraphqlResponse of the subscription.
     """
     # ! initialize websocket only once
     if not self._conn:
