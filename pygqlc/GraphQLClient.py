@@ -600,6 +600,11 @@ class GraphQLClient(metaclass=Singleton):
     self.environment = name
 
   def setTimeoutWebsocket(self, seconds):
+    """This function sets the webscoket's timeout.
+
+    Args:
+        seconds (int): Time for the timeout.
+    """
     self.websocket_timeout =  seconds
     if self._conn:
       self._conn.settimeout(self.websocket_timeout)
