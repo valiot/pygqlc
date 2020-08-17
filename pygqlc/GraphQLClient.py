@@ -524,6 +524,19 @@ class GraphQLClient:
   # * END BATCH function **************************************
   # * helper methods
   def addEnvironment(self, name, url=None, wss=None, headers={}, default=False, timeoutWebsocket=60):
+    """This fuction adds a new environment to the instance.
+
+    Args:
+        name (string): Name of the environment.
+        url (string, optional): URL of the environmet. Defaults to None.
+        wss (string, optional): URL of the WSS of the environment. Defaults to None.
+        headers (dict, optional): A dictionary with the headers
+         (like authorization). Defaults to {}.
+        default (bool, optional): Checks if the new environment will be the
+         default one of the instance. Defaults to False.
+        timeoutWebsocket (int, optional): Seconds of the timeout of the
+         websocket. Defaults to 60.
+    """
     self.environments.update({
       name: {
         'url': url,
