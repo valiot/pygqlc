@@ -184,6 +184,19 @@ class GraphQLClient(metaclass=Singleton):
   
   # * Query high level implementation
   def query(self, query, variables=None, flatten=True, single_child=False):
+    """This function makes a query transaction to the actual environment.
+
+    Args:
+        query (string): Graphql query instructions.
+        variables (string, optional): Query variables. Defaults to None.
+        flatten (bool, optional): GCheck if GraphqlResponse should be flatten or
+         not. Defaults to True.
+        single_child (bool, optional): Check if GraphqlResponse only has one
+         element. Defaults to False.
+
+    Returns:
+        [GraphqlResponse]: Returns the GraphqlResponse of the query.
+    """
     data = None
     errors = []
     try:
