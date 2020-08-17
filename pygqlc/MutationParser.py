@@ -1,5 +1,9 @@
 import re
 
+"""This module has the propuse to parsing and preparing a graphql transaction,
+ such as a query or mutation, to make a batch of them.
+"""
+
 mutation_regex = r'^\s*mutation\s*(\s+[a-zA-Z_]+[a-zA-Z_0-9]?)?\s*(\(\s*(((\$[a-zA-Z_]+[a-zA-Z_0-9]?)\s*:\s*([a-zA-Z_]+[a-zA-Z_0-9]?!?)\s*)+\s*)\))?\s*{\s*((.\s*)+\s*})\s*}'
 rgx_groups = {
   'full_doc': 0,
