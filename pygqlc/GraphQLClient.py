@@ -257,6 +257,20 @@ class GraphQLClient:
     return data, errors
   # * Subscription high level implementation ******************
   def subscribe(self, query, variables=None, callback=None, flatten=True, _id=None):
+    """This functions makes a subscription to the actual environment.
+
+    Args:
+        query (string): Graphql subscription instructions.
+        variables (string, optional): Subscription variables. Defaults to None.
+        callback (method, optional): Trigger method of the subscription.
+         Defaults to None.
+        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+         not. Defaults to True.
+        _id (int, optional): Subscription id. Defaults to None.
+
+    Returns:
+        [GraphqlResponse]: Returns the GraphqlResponse of the subscription.
+    """
     # ! initialize websocket only once
     if not self._conn:
       if self._new_conn():
