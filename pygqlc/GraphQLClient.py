@@ -561,6 +561,12 @@ class GraphQLClient:
     self.environments[environment].update({'url': url})
   
   def setWss(self, environment=None, url=None):
+    """This function setes a new WSS to an existing environment.
+
+    Args:
+        environment (string, optional): Name of the environment. Defaults to None.
+        url (string, optional): New WSS URL for the environment. Defaults to None.
+    """
     # if environment is not selected, use current environment
     if not environment:
       environment = self.environment
