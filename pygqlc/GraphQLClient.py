@@ -548,6 +548,12 @@ class GraphQLClient(metaclass=Singleton):
     self.setTimeoutWebsocket(timeoutWebsocket)
 
   def setUrl(self, environment=None, url=None):
+    """This function sets a new url to an existing environment.
+
+    Args:
+        environment (string, optional): Name of the environment. Defaults to None.
+        url (string, optional): New URL for the enviroment. Defaults to None.
+    """
     # if environment is not selected, use current environment
     if not environment:
       environment = self.environment
