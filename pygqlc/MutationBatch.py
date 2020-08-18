@@ -91,6 +91,14 @@ class MutationBatch:
    graphql's transaction.
   """
   def __init__(self, client=None, label='mutation'):
+    """Constructor of the MutatuibBatch object.
+
+    Args:
+        client (GraphQLClient Object, optional): Instance of the GraphQLClient.
+         Defaults to None.
+        label (str, optional): Label that will get each transaction of the batch.
+         Defaults to 'mutation'.
+    """
     self.client = client
     self.start_tag = 'mutation BatchMutation {'
     self.batch_doc = ''
@@ -106,6 +114,15 @@ class MutationBatch:
     pass # print(f'tear down things in {self.client}')
   
   def append(self, doc, variables={}):
+    """This function makes each transactions for the batch.
+
+    Args:
+        doc (string): GraphQL transaction intructions.
+        variables (dict, optional): Variables of the transaction. Defaults to {}.
+
+    Raises:
+        InvalidMutationException: It raises when the doc is invalid.
+    """
     # extract document tokens
     mp = MutationParser(doc)
     valid_doc = mp.parse()
@@ -119,10 +136,20 @@ class MutationBatch:
     self.count += 1
   
   def get_doc(self):
+    """This function builds the transaction.
+
+    Returns:
+        (string): Returns the full transaction, ready to execute.
+    """
     full_doc = f'''{self.start_tag}\n{self.batch_doc} {self.close_tag}'''
     return full_doc
 
   def execute(self):
+    """This function can execute a TransactionBatch.
+
+    Returns:
+        (GraphqlResponse): Returns the Graphql response.
+    """
     error_dict = {}
     data, errors = self.client.mutate(self.get_doc())
     if errors:
