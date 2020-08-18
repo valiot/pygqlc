@@ -12,35 +12,36 @@ from tenacity import (
   wait_random
 )
 """
-This module has the general purpose of defining the GraphQLClient class 
+This module has the general purpose of defining the GraphQLClient class
 and all its methods.
 
-    GQLResponse [type variable]: [data[field(string)], errors[message(string),
-    field?(string)]
-  
-    Examples of make an instance of GraphQLClient:
-        `With` clause:
-            '''
-            client = GraphQLClient()
-            with client.enterEnvironment('dev') as gql:
-                data, errors = gql.query('{lines(limit:2){id}}')
-                print(data, errors)
-            '''
-        `setEnvironment`:
-            '''
-            client = GraphQLClient()
-            client.addEnvironment('dev', "https://heineken.valiot.app/")
-            client.addHeader(
-                environment='dev',
-                header={'Authorization': dev_token})
-            data, errors = gql.query('{lines(limit:2){id}}')
-            print(data, errors)
-            '''
+GQLResponse [type variable]: [data[field(string)], errors[message(string),
+ field?(string)]
+
+Examples:
+  `With` clause:
+      '''
+      client = GraphQLClient()
+      with client.enterEnvironment('dev') as gql:
+          data, errors = gql.query('{lines(limit:2){id}}')
+          print(data, errors)
+      '''
+  `setEnvironment`:
+      '''
+      client = GraphQLClient()
+      client.addEnvironment('dev', "https://heineken.valiot.app/")
+      client.addHeader(
+          environment='dev',
+          header={'Authorization': dev_token})
+      data, errors = gql.query('{lines(limit:2){id}}')
+      print(data, errors)
+      '''
 """
 
 from .MutationBatch import MutationBatch
 
 GQL_WS_SUBPROTOCOL = "graphql-ws"
+
 
 def has_errors(result):
   """This function checks if a GqlResponse has any errors.
@@ -53,6 +54,7 @@ def has_errors(result):
   """
   _, errors = result
   return len(errors) > 0
+
 
 def data_flatten(data, single_child=False):
   """This function formats the data structure of a GqlResponse.
@@ -71,16 +73,17 @@ def data_flatten(data, single_child=False):
       key = list(data.keys())[0]
       return data_flatten(data[key], single_child)
     else:
-      return data # ! various elements, nothing to flatten
+      return data  # ! various elements, nothing to flatten
   elif single_child and type(data) == list:
     if len(data) == 1:
       return data_flatten(data[0], single_child)
     elif len(data) == 0:
-      return None # * Return none if no child was found
+      return None  # * Return none if no child was found
     else:
       return data
   else:
-    return data # ! not a dict, nothing to flatten
+    return data  # ! not a dict, nothing to flatten
+
 
 def safe_pop(data, index=0, default=None):
   """This function pops safetly a GqlResponse from a subscription queue.
@@ -91,8 +94,8 @@ def safe_pop(data, index=0, default=None):
       default (None, optional): Define the default message. Defaults to None.
 
   Returns:
-      [GqlResponse]: Returns the GqlResponse. If the subscription queue is 
-      empty, it returns the default message.
+      [GqlResponse]: Returns the GqlResponse. If the subscription queue is
+       empty, it returns the default message.
   """
   if len(data) > 0:
     return data.pop(index)
@@ -102,33 +105,33 @@ def safe_pop(data, index=0, default=None):
 
 @singleton
 class GraphQLClient:
-    """The GraphQLClient class follows the singleton design pattern. It can
-    make a query, mutation or subscription from an api.
-    """
+  """The GraphQLClient class follows the singleton design pattern. It can
+  make a query, mutation or subscription from an api.
+  
+  Attributes:
+      environments (dict): Dictonary with all envieroments. Defaults to
+        empty dict.
+      environment (dict): Dictionary with the data of the actual enviroment.
+        Defaults to None.
+      ws_url (string): String with the WSS url. Defaults to None.
+      subs (dict): Dictionary with all active subscriptions in the instance.
+        Defaults to empty dict.
+      sub_counter (int): Count of active subscriptions in the instance.
+        Defaults to 0.
+      sub_router_thread (thread): Thread with all subscription logic.
+        Defaults to None.
+      wss_conn_halted (boolean): Checks if the wss connection is halted.
+        Defaults to False.
+      closing (boolean): Checks if all subscriptions were successfully closed.
+        Defaults to False.
+      unsubscribing (boolean): Checks if all subscriptions were successfully
+        canceled. Defaults to False.
+      websocket_timeout (int): seconds of the websocket timeout. Defaults to
+        60.
+  """
   def __init__(self):
-      """Constructor of the GraphQlClient object.
-
-      Attributes:
-          environments (dict): Dictonary with all envieroments. Defaults to
-          empty dict.
-          environment (dict): Dictionary with the data of the actual enviroment.
-          Defaults to None.
-          ws_url (string): String with the WSS url. Defaults to None.
-          subs (dict): Dictionary with all active subscriptions in the instance.
-          Defaults to empty dict.
-          sub_counter (int): Count of active subscriptions in the instance.
-          Defaults to 0.
-          sub_router_thread (thread): Thread with all subscription logic.
-          Defaults to None.
-          wss_conn_halted (boolean): Checks if the wss connection is halted.
-          Defaults to False.
-          closing (boolean): Checks if all subscriptions were successfully closed.
-          Defaults to False.
-          unsubscribing (boolean): Checks if all subscriptions were successfully
-          canceled. Defaults to False.
-          websocket_timeout (int): seconds of the websocket timeout. Defaults to
-          60.
-      """
+    """Constructor of the GraphQlClient object.
+    """
     # * query/mutation related attributes
     self.environments = {}
     self.environment = None
@@ -153,14 +156,14 @@ class GraphQLClient:
     return
   
   def enterEnvironment(self, name):
-      """This function makes a safe access to an environment.
+    """This function makes a safe access to an environment.
 
-      Args:
-          name (string): Name of the environment.
+    Args:
+        name (string): Name of the environment.
 
-      Returns:
-          (self): Returns self instance for the use with `with` keyword.
-      """
+    Returns:
+        (self): Returns self instance for the use with `with` keyword.
+    """
     self.save_env = self.environment
     self.environment = name
     return self # * for use with "with" keyword
@@ -214,7 +217,7 @@ class GraphQLClient:
 
   # * Query high level implementation
   def query_one(self, query, variables=None):
-      """This function makes a single child query.
+    """This function makes a single child query.
 
     Args:
         query (string): Graphql query instructions.
