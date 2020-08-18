@@ -34,7 +34,7 @@ from pprint import pprint
  as a query or mutation.
 """
 class InvalidMutationException(Exception):
-  """This is class is to define the InvalidMutationException
+  """This class is to define the InvalidMutationException
   """
   pass
 

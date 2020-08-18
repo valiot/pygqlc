@@ -15,27 +15,6 @@ from tenacity import (
 This module has the general purpose of defining the GraphQLClient class
 and all its methods.
 
-GQLResponse [type variable]: [data[field(string)], errors[message(string),
- field?(string)]
-
-Examples:
-  `With` clause:
-      '''
-      client = GraphQLClient()
-      with client.enterEnvironment('dev') as gql:
-          data, errors = gql.query('{lines(limit:2){id}}')
-          print(data, errors)
-      '''
-  `setEnvironment`:
-      '''
-      client = GraphQLClient()
-      client.addEnvironment('dev', "https://heineken.valiot.app/")
-      client.addHeader(
-          environment='dev',
-          header={'Authorization': dev_token})
-      data, errors = gql.query('{lines(limit:2){id}}')
-      print(data, errors)
-      '''
 """
 
 from .MutationBatch import MutationBatch
@@ -95,7 +74,7 @@ def safe_pop(data, index=0, default=None):
 
   Returns:
       [GqlResponse]: Returns the GqlResponse. If the subscription queue is
-       empty, it returns the default message.
+      empty, it returns the default message.
   """
   if len(data) > 0:
     return data.pop(index)
@@ -128,6 +107,25 @@ class GraphQLClient:
         canceled. Defaults to False.
       websocket_timeout (int): seconds of the websocket timeout. Defaults to
         60.
+  
+  Examples:
+      >>> <With> clause:
+        '''
+        client = GraphQLClient()
+        with client.enterEnvironment('dev') as gql:
+            data, errors = gql.query('{lines(limit:2){id}}')
+            print(data, errors)
+        '''
+      >>> setEnvironment:
+        '''
+        client = GraphQLClient()
+        client.addEnvironment('dev', "https://heineken.valiot.app/")
+        client.addHeader(
+            environment='dev',
+            header={'Authorization': dev_token})
+        data, errors = gql.query('{lines(limit:2){id}}')
+        print(data, errors)
+        '''
   """
   def __init__(self):
     """Constructor of the GraphQlClient object.
@@ -627,7 +625,7 @@ class GraphQLClient:
         Exception: Transactions format error.
 
     Returns:
-        [JSON]: Raw GraphqlResponse.
+        JSON: Raw GraphqlResponse.
     """
     data = {
       'query': query,
