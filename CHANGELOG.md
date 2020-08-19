@@ -1,3 +1,7 @@
+## [1.2.1] - 2020-10-19
+### Fixed
+- Dependencies have been set to be installed from certain compatible version
+
 ## [1.2.0] - 2020-07-08
 ### Added
 - Configuration parameter websocketTimeout to be used when the connection is halted
