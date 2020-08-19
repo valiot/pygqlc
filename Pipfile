@@ -13,10 +13,10 @@ twine = "*"
 pytest-cov = "*"
 
 [packages]
-requests = "*"
-pydash = "*"
-singleton-decorator = "*"
-tenacity = "*"
+requests = "~=2.24.0"
+pydash = "~=4.8.0"
+singleton-decorator = "~=1.0.0"
+tenacity = "~=6.2.0"
 websocket-client = "==0.54.0"
 
 [requires]
