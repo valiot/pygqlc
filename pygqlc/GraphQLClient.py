@@ -4,7 +4,7 @@ import time
 import threading
 import websocket
 import pydash as py_
-from singleton_decorator import singleton
+from pygqlc.helper_modules.Singleton import Singleton
 from tenacity import (
   retry, 
   retry_if_result, 
@@ -63,8 +63,7 @@ data, errors = gql.query('{lines(limit:2){id}}')
 print(data, errors)
 '''
 
-@singleton
-class GraphQLClient:
+class GraphQLClient(metaclass=Singleton):
   def __init__(self):
     # * query/mutation related attributes
     self.environments = {}
