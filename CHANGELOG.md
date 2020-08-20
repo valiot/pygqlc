@@ -1,3 +1,10 @@
+## [2.0.0] - 2020-10-20
+### Added
+- Add a Singleton metaclass to the helper_modules module
+
+### Removed
+- Singleton-decorator dependencie
+
 ## [1.2.0] - 2020-07-08
 ### Added
 - Configuration parameter websocketTimeout to be used when the connection is halted

@@ -15,7 +15,6 @@ pytest-cov = "*"
 [packages]
 requests = "*"
 pydash = "*"
-singleton-decorator = "*"
 tenacity = "*"
 websocket-client = "==0.54.0"
 
