@@ -1,6 +1,6 @@
 ## [1.2.1] - 2020-10-20
 ### Added
-- Singleton metaclass in the helper_modules
+- Add a Singleton metaclass to the helper_modules module
 
 ### Removed
 - Singleton-decorator dependencie

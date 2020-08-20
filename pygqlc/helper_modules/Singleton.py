@@ -1,5 +1,5 @@
 class Singleton(type):
-  """This is class defines another classes to be a singleton.
+  """This class defines another classes to be a singleton.
 
   Args:
       type (cls): Class that wants to obtain the singleton pattern.
