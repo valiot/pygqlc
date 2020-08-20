@@ -102,7 +102,33 @@ def safe_pop(data, index=0, default=None):
 
 
 class GraphQLClient(metaclass=Singleton):
+    """The GraphQLClient class follows the singleton design pattern. It can
+    make a query, mutation or subscription from an api.
+    """
   def __init__(self):
+      """Constructor of the GraphQlClient object.
+
+      Attributes:
+          environments [dict]: Dictonary with all envieroments. Defaults to
+          empty dict.
+          environment [dict]: Dictionary with the data of the actual enviroment.
+          Defaults to None.
+          ws_url [string]: String with the WSS url. Defaults to None.
+          subs [dict]: Dictionary with all active subscriptions in the instance.
+          Defaults to empty dict.
+          sub_counter [int]: Count of active subscriptions in the instance.
+          Defaults to 0.
+          sub_router_thread [thread]: Thread with all subscription logic.
+          Defaults to None.
+          wss_conn_halted [boolean]: Checks if the wss connection is halted.
+          Defaults to False.
+          closing [boolean]: Checks if all subscriptions were successfully closed.
+          Defaults to False.
+          unsubscribing [boolean]: Checks if all subscriptions were successfully
+          canceled. Defaults to False.
+          websocket_timeout [int]: seconds of the websocket timeout. Defaults to
+          60.
+      """
     # * query/mutation related attributes
     self.environments = {}
     self.environment = None
