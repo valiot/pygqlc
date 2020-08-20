@@ -1,4 +1,4 @@
-## [1.2.1] - 2020-10-20
+## [2.0.0] - 2020-10-20
 ### Added
 - Add a Singleton metaclass to the helper_modules module
 
