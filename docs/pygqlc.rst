@@ -48,10 +48,3 @@ pygqlc.SubscriptionParser module
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
-
-.. automodule:: pygqlc
-   :members:
-   :undoc-members:
-   :show-inheritance:

@@ -7,7 +7,7 @@ Welcome to PYGQLClient's documentation!
 =======================================
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 2
    :caption: Contents:
   
    modules
