@@ -15,12 +15,9 @@ from tenacity import (
 This module has the general purpose of defining the GraphQLClient class
 and all its methods.
 
-<<<<<<< HEAD
 GQLResponse (type variable): [data[field(string)], errors[message(string),
  field?(string)]
 
-=======
->>>>>>> 5f7a14d49ad6dc5624c398b98912851402e16e6f
 """
 
 from .MutationBatch import MutationBatch
@@ -80,11 +77,7 @@ def safe_pop(data, index=0, default=None):
 
   Returns:
       [GqlResponse]: Returns the GqlResponse. If the subscription queue is
-<<<<<<< HEAD
        empty, it returns the default message.
-=======
-      empty, it returns the default message.
->>>>>>> 5f7a14d49ad6dc5624c398b98912851402e16e6f
   """
   if len(data) > 0:
     return data.pop(index)
@@ -92,12 +85,7 @@ def safe_pop(data, index=0, default=None):
     return default
 
 
-<<<<<<< HEAD
 class GraphQLClient(metaclass=Singleton):
-=======
-@singleton
-class GraphQLClient:
->>>>>>> 5f7a14d49ad6dc5624c398b98912851402e16e6f
   """The GraphQLClient class follows the singleton design pattern. It can
   make a query, mutation or subscription from an api.
   
