@@ -15,27 +15,9 @@ from tenacity import (
 This module has the general purpose of defining the GraphQLClient class
 and all its methods.
 
-GQLResponse [type variable]: [data[field(string)], errors[message(string),
+GQLResponse (type variable): [data[field(string)], errors[message(string),
  field?(string)]
 
-Examples:
-  `With` clause:
-      '''
-      client = GraphQLClient()
-      with client.enterEnvironment('dev') as gql:
-          data, errors = gql.query('{lines(limit:2){id}}')
-          print(data, errors)
-      '''
-  `setEnvironment`:
-      '''
-      client = GraphQLClient()
-      client.addEnvironment('dev', "https://heineken.valiot.app/")
-      client.addHeader(
-          environment='dev',
-          header={'Authorization': dev_token})
-      data, errors = gql.query('{lines(limit:2){id}}')
-      print(data, errors)
-      '''
 """
 
 from .MutationBatch import MutationBatch
