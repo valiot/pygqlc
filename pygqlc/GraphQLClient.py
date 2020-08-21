@@ -627,11 +627,7 @@ class GraphQLClient(metaclass=Singleton):
         Exception: Transactions format error.
 
     Returns:
-<<<<<<< HEAD
         [JSON]: Raw GraphqlResponse.
-=======
-        JSON: Raw GraphqlResponse.
->>>>>>> 5f7a14d49ad6dc5624c398b98912851402e16e6f
     """
     data = {
       'query': query,
