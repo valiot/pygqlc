@@ -6,4 +6,4 @@ from .SubscriptionParser import SubscriptionParser
 # * Package name:
 name = 'pygqlc'
 # * required here for pypi upload exceptions:
-__version__ = "1.2.0"
+__version__ = "2.0.0"
