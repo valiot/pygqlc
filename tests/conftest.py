@@ -24,7 +24,7 @@ def gql():
   import sys
 
   try:
-    if not os.environ.get('AP'):
+    if not os.environ.get('API'):
       raise EnvironmentError
     if not os.environ.get('WSS'):
       raise EnvironmentError
