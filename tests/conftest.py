@@ -11,10 +11,10 @@ class RecordException(Exception):
   """Record doesn't exists in author model"""
 
 def query_authors(name=""):
-  name_query = '{name:"'+f'{name}'+'"}'
+  name_filter = '{name:"'+ name +'"}'
   if not name:
     return "query {authors{id}}"
-  authors_query = "query {authors(filter:?){id}}".replace('?', name_query)
+  authors_query = "query {authors(filter:?){id}}".replace('?', name_filter)
   return authors_query
 
 
