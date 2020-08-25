@@ -11,6 +11,8 @@ setuptools = "*"
 wheel = "*"
 twine = "*"
 pytest-cov = "*"
+sphinx = "3.1"
+sphinx-rtd-theme = "==0.5.0"
 
 [packages]
 requests = "~=2.24.0"

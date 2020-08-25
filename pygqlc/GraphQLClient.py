@@ -11,60 +11,127 @@ from tenacity import (
   stop_after_attempt, 
   wait_random
 )
+"""
+This module has the general purpose of defining the GraphQLClient class
+and all its methods.
+
+GQLResponse (type variable): [data[field(string)], errors[message(string),
+ field?(string)]
+
+"""
 
 from .MutationBatch import MutationBatch
 
 GQL_WS_SUBPROTOCOL = "graphql-ws"
 
+
 def has_errors(result):
+  """This function checks if a GqlResponse has any errors.
+
+  Args:
+      result (GqlResponse):  [data, errors]
+
+  Returns:
+      (boolean): Returns `True` if a transaction has at least one error.
+  """
   _, errors = result
   return len(errors) > 0
 
+
 def data_flatten(data, single_child=False):
+  """This function formats the data structure of a GqlResponse.
+
+  Args:
+      data (dict, list): The data of a GqlResponse.
+      single_child (bool, optional): Checks if the data has only one element.
+      Defaults to False.
+
+  Returns:
+      (dict): Returns a formatted data.
+  """
   if type(data) == dict:
     keys = list(data.keys())
     if len(keys) == 1:
       key = list(data.keys())[0]
       return data_flatten(data[key], single_child)
     else:
-      return data # ! various elements, nothing to flatten
+      return data  # ! various elements, nothing to flatten
   elif single_child and type(data) == list:
     if len(data) == 1:
       return data_flatten(data[0], single_child)
     elif len(data) == 0:
-      return None # * Return none if no child was found
+      return None  # * Return none if no child was found
     else:
       return data
   else:
-    return data # ! not a dict, nothing to flatten
+    return data  # ! not a dict, nothing to flatten
+
 
 def safe_pop(data, index=0, default=None):
+  """This function pops safetly a GqlResponse from a subscription queue.
+
+  Args:
+      data (list): Is the list of GqlResponse that caught the subscription.
+      index (int, optional): Index of the subscription queue. Defaults to 0.
+      default (None, optional): Define the default message. Defaults to None.
+
+  Returns:
+      [GqlResponse]: Returns the GqlResponse. If the subscription queue is
+       empty, it returns the default message.
+  """
   if len(data) > 0:
     return data.pop(index)
   else:
     return default
 
-# ! Example With:
-'''
-client = GraphQLClient()
-with client.enterEnvironment('dev') as gql:
-    data, errors = gql.query('{lines(limit:2){id}}')
-    print(data, errors)
-'''
-
-# ! Example setEnvironment:
-'''
-client = GraphQLClient()
-client.addEnvironment('dev', "https://heineken.valiot.app/")
-client.addHeader(
-    environment='dev', 
-    header={'Authorization': dev_token})
-data, errors = gql.query('{lines(limit:2){id}}')
-print(data, errors)
-'''
 
 class GraphQLClient(metaclass=Singleton):
+  """The GraphQLClient class follows the singleton design pattern. It can
+  make a query, mutation or subscription from an api.
+  
+  Attributes:
+      environments (dict): Dictonary with all envieroments. Defaults to
+        empty dict.
+      environment (dict): Dictionary with the data of the actual enviroment.
+        Defaults to None.
+      ws_url (string): String with the WSS url. Defaults to None.
+      subs (dict): Dictionary with all active subscriptions in the instance.
+        Defaults to empty dict.
+      sub_counter (int): Count of active subscriptions in the instance.
+        Defaults to 0.
+      sub_router_thread (thread): Thread with all subscription logic.
+        Defaults to None.
+      wss_conn_halted (boolean): Checks if the wss connection is halted.
+        Defaults to False.
+      closing (boolean): Checks if all subscriptions were successfully closed.
+        Defaults to False.
+      unsubscribing (boolean): Checks if all subscriptions were successfully
+        canceled. Defaults to False.
+      websocket_timeout (int): seconds of the websocket timeout. Defaults to
+        60.
+  
+  Examples:
+      >>> <With> clause:
+        '''
+        client = GraphQLClient()
+        with client.enterEnvironment('dev') as gql:
+            data, errors = gql.query('{lines(limit:2){id}}')
+            print(data, errors)
+        '''
+      >>> setEnvironment:
+        '''
+        client = GraphQLClient()
+        client.addEnvironment('dev', "https://heineken.valiot.app/")
+        client.addHeader(
+            environment='dev',
+            header={'Authorization': dev_token})
+        data, errors = gql.query('{lines(limit:2){id}}')
+        print(data, errors)
+        '''
+  """
   def __init__(self):
+    """Constructor of the GraphQlClient object.
+    """
     # * query/mutation related attributes
     self.environments = {}
     self.environment = None
@@ -89,6 +156,14 @@ class GraphQLClient(metaclass=Singleton):
     return
   
   def enterEnvironment(self, name):
+    """This function makes a safe access to an environment.
+
+    Args:
+        name (string): Name of the environment.
+
+    Returns:
+        (self): Returns self instance for the use with `with` keyword.
+    """
     self.save_env = self.environment
     self.environment = name
     return self # * for use with "with" keyword
@@ -112,6 +187,19 @@ class GraphQLClient(metaclass=Singleton):
   
   # * Query high level implementation
   def query(self, query, variables=None, flatten=True, single_child=False):
+    """This function makes a query transaction to the actual environment.
+
+    Args:
+        query (string): Graphql query instructions.
+        variables (string, optional): Query variables. Defaults to None.
+        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+         not. Defaults to True.
+        single_child (bool, optional): Check if GraphqlResponse only has one
+         element. Defaults to False.
+
+    Returns:
+        (GraphqlResponse): Returns the GraphqlResponse of the query.
+    """
     data = None
     errors = []
     try:
@@ -129,10 +217,31 @@ class GraphQLClient(metaclass=Singleton):
 
   # * Query high level implementation
   def query_one(self, query, variables=None):
+    """This function makes a single child query.
+
+    Args:
+        query (string): Graphql query instructions.
+        variables (string, optional): Query variables. Defaults to None.
+
+
+    Returns:
+        (GraphqlResponse): Returns the GraphqlResponse of the query.
+    """
     return self.query(query, variables, flatten=True, single_child=True)
   
   # * Mutation high level implementation
   def mutate(self, mutation, variables=None, flatten=True):
+    """This function makes a mutation transaction to the actual environment.
+
+    Args:
+        mutation (string): Graphql mutation instructions.
+        variables (string, optional): Mutation variables. Defaults to None.
+        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+         not. Defaults to True.
+
+    Returns:
+        (GraphqlResponse): Returns the GraphqlResponse of the mutation.
+    """
     response = {}
     data = None
     errors = []
@@ -151,6 +260,20 @@ class GraphQLClient(metaclass=Singleton):
     return data, errors
   # * Subscription high level implementation ******************
   def subscribe(self, query, variables=None, callback=None, flatten=True, _id=None):
+    """This functions makes a subscription to the actual environment.
+
+    Args:
+        query (string): Graphql subscription instructions.
+        variables (string, optional): Subscription variables. Defaults to None.
+        callback (function, optional): Trigger function of the subscription.
+         Defaults to None.
+        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+         not. Defaults to True.
+        _id (int, optional): Subscription id. Defaults to None.
+
+    Returns:
+        (GraphqlResponse): Returns the GraphqlResponse of the subscription.
+    """
     # ! initialize websocket only once
     if not self._conn:
       if self._new_conn():
@@ -302,6 +425,9 @@ class GraphQLClient(metaclass=Singleton):
       return False
 
   def close(self):
+    """This function ends and resets all subscriptions and related attributes
+     to their default values.
+    """
     # ! ask subscription message router to stop
     self.closing = True
     if not self.sub_router_thread:
@@ -350,6 +476,11 @@ class GraphQLClient(metaclass=Singleton):
     self._conn.send(json.dumps(payload))
 
   def resetSubsConnection(self):
+    """This function resets all subscriptions connections.
+
+    Returns:
+        (boolean): Returns if the reconnection has been possible.
+    """
     if not self.sub_router_thread:
       print('connection not stablished, nothing to reset')
       return False
@@ -372,14 +503,43 @@ class GraphQLClient(metaclass=Singleton):
 
   # * BATCH functions *****************************************
   def batchMutate(self, label='mutation'):
+    """This fuction makes a batchs of mutation transactions.
+
+    Args:
+        label (str, optional): Name of the mutation batch. Defaults to 'mutation'.
+
+    Returns:
+        (MutationBatch): Returns a MutationBatch Object.
+    """
     return MutationBatch(client=self, label=label)
   
   def batchQuery(self, label='query'):
+    """This fuction makes a batchs of query transactions.
+
+    Args:
+        label (str, optional): Name of the query batch. Defaults to 'query'.
+
+    Returns:
+        (MutationBatch): Returns a MutationBatch Object.
+    """
     return MutationBatch(client=self, label=label)
 
   # * END BATCH function **************************************
   # * helper methods
   def addEnvironment(self, name, url=None, wss=None, headers={}, default=False, timeoutWebsocket=60):
+    """This fuction adds a new environment to the instance.
+
+    Args:
+        name (string): Name of the environment.
+        url (string, optional): URL of the environmet. Defaults to None.
+        wss (string, optional): URL of the WSS of the environment. Defaults to None.
+        headers (dict, optional): A dictionary with the headers
+         (like authorization). Defaults to {}.
+        default (bool, optional): Checks if the new environment will be the
+         default one of the instance. Defaults to False.
+        timeoutWebsocket (int, optional): Seconds of the timeout of the
+         websocket. Defaults to 60.
+    """
     self.environments.update({
       name: {
         'url': url,
@@ -392,18 +552,36 @@ class GraphQLClient(metaclass=Singleton):
     self.setTimeoutWebsocket(timeoutWebsocket)
 
   def setUrl(self, environment=None, url=None):
+    """This function sets a new url to an existing environment.
+
+    Args:
+        environment (string, optional): Name of the environment. Defaults to None.
+        url (string, optional): New URL for the enviroment. Defaults to None.
+    """
     # if environment is not selected, use current environment
     if not environment:
       environment = self.environment
     self.environments[environment].update({'url': url})
   
   def setWss(self, environment=None, url=None):
+    """This function sets a new WSS to an existing environment.
+
+    Args:
+        environment (string, optional): Name of the environment. Defaults to None.
+        url (string, optional): New WSS URL for the environment. Defaults to None.
+    """
     # if environment is not selected, use current environment
     if not environment:
       environment = self.environment
     self.environments[environment].update({'wss': url})
   
   def addHeader(self, environment=None, header={}):
+    """This function updates the header of an existing environment.
+
+    Args:
+        environment (string, optional): Name of the environment. Defaults to None.
+        header (dict, optional): New headers to add. Defaults to {}.
+    """
     # if environment is not selected, use current environment
     if not environment:
       environment = self.environment
@@ -412,18 +590,45 @@ class GraphQLClient(metaclass=Singleton):
     self.environments[environment]['headers'].update(headers)
 
   def setEnvironment(self, name):
+    """This functions sets the actual environment of the instance.
+
+    Args:
+        name (string): Name of the environment.
+
+    Raises:
+        Exception: The environment's name doesn't exists in the environment list.
+    """
     env = self.environments.get(name, None)
     if not env:
       raise Exception(f'selected environment not set ({name})')
     self.environment = name
 
   def setTimeoutWebsocket(self, seconds):
+    """This function sets the webscoket's timeout.
+
+    Args:
+        seconds (int): Time for the timeout.
+    """
     self.websocket_timeout =  seconds
     if self._conn:
       self._conn.settimeout(self.websocket_timeout)
 
   # * LOW LEVEL METHODS ----------------------------------
   def execute(self, query, variables=None):
+    """This function executes the intructions of a query or mutation.
+
+    Args:
+        query (string): Graphql instructions.
+        variables (string, optional): Variables of the transaction. Defaults
+         to None.
+
+    Raises:
+        Exception: There is not setted a main environment.
+        Exception: Transactions format error.
+
+    Returns:
+        [JSON]: Raw GraphqlResponse.
+    """
     data = {
       'query': query,
       'variables': variables
