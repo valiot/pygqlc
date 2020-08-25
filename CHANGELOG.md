@@ -1,7 +1,9 @@
 ## [2.0.0] - 2020-10-20
 ### Added
-- Add a Singleton metaclass to the helper_modules module
 - Add Documentation with sphinx
+
+### Changed
+- Change Singleton implementation from decorator to metaclass
 
 ### Removed
 - Singleton-decorator dependency

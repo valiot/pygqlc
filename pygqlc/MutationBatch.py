@@ -30,7 +30,7 @@
 from .MutationParser import MutationParser
 from pprint import pprint
 
-"""The porpuse of this module is batch and execute a graphql transaction, such
+"""The purpuse of this module is batch and execute a graphql transaction, such
  as a query or mutation.
 """
 class InvalidMutationException(Exception):
