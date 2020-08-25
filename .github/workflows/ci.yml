@@ -27,6 +27,8 @@ jobs:
       - name: Tesinting envs vars
         run: |
           printenv
+      
+      - name: ECHO TEST
         run: |
           echo $TEST
 
