@@ -22,7 +22,7 @@ jobs:
           API: ${{ secrets.API }}
           WSS: ${{ secrets.WSS }}
           TOKEN: ${{ secrets.TOKEN }}
-          TEST: HOLA
+          TEST: "HOLA"
 
       - name: Tesinting envs vars
         run: |
