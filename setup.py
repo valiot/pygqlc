@@ -34,8 +34,8 @@ setup(
     description=desc,
     long_description=long_description,
     long_description_content_type='text/markdown',
-    author="Baruc Almaguer",
-    author_email='baruc@valiot.io',
+    author="Valiot",
+    author_email='adrian@valiot.io',
     url='https://github.com/valiot/pygqlc',
     packages=find_packages(include=['pygqlc']),
     entry_points={
