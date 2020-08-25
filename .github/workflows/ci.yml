@@ -24,8 +24,8 @@ jobs:
           TOKEN: ${{ secrets.TOKEN }}
 
       - name: Tesinting envs vars
-      run: |
-        printenv
+        run: |
+          printenv
 
       - name: Installing pipenv
         uses: dschep/install-pipenv-action@v1
