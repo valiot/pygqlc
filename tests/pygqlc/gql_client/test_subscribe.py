@@ -18,7 +18,7 @@ def on_author_created(msg):
     print(f'error creating author: {msg["messages"]}')
 
 def test_subscribe_success(gql):
-  sub_id = gql.sub_counter + 1
+  sub_id = str(gql.sub_counter + 1)
   unsub_1 = gql.subscribe(subs.sub_author_created, callback=on_author_created)
   assert type(unsub_1) == types.FunctionType, \
     'subscribe should return an unsubscribe function'
@@ -28,7 +28,7 @@ def test_subscribe_success(gql):
     'The subscription did not start with the correct ID'
 
 def test_sub_routing_loop_message(gql):
-  sub_id = gql.sub_counter + 1
+  sub_id = str(gql.sub_counter + 1)
   _ = gql.subscribe(subs.sub_author_updated, callback=on_author_updated)
   runs = gql.subs[sub_id]['runs']
   # * This should activate the subscription at least once:
@@ -48,7 +48,7 @@ def test_sub_routing_loop_message(gql):
     'Subscription should be triggered at least once'
 
 def test_sub_default_callback(gql):
-  sub_id = gql.sub_counter + 1
+  sub_id = str(gql.sub_counter + 1)
   # * This adds coverage into the default callback
   _ = gql.subscribe(subs.sub_author_updated)
   runs = gql.subs[sub_id]['runs']
