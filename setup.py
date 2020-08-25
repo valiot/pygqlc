@@ -8,13 +8,11 @@ from pygqlc import __version__
 
 requirements = [
     # TODO: put package requirements here
-    'requests',
+    'requests==2.24.0',
     'python-dotenv',
-    'pydash',
-    'python-dotenv',
+    'pydash==4.8.0',
     'websocket-client==0.54.0',
-    'singleton-decorator',
-    'tenacity',
+    'tenacity==6.2.0',
 ]
 
 setup_requirements = [

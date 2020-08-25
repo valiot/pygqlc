@@ -2,9 +2,13 @@
 ### Added
 - Add a Singleton metaclass to the helper_modules module
 - Add validation in the testing resources
-
+- Add Documentation with sphinx
+### Changed
+- Change Singleton implementation from decorator to metaclass
+### Fixed
+- Dependencies have been set to be installed from certain compatible version
 ### Removed
-- Singleton-decorator dependencie
+- Singleton-decorator dependency
 
 ## [1.2.0] - 2020-07-08
 ### Added
