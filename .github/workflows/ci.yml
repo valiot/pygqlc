@@ -15,7 +15,11 @@ jobs:
         uses: actions/setup-python@v1
         with:
           python-version: 3.7
-      
+        env: # Or as an environment variable
+          API: ${{ secrets.API }}
+          WSS: ${{ secrets.WSS }}
+          TOKEN: ${{ secrets.TOKEN }}
+
       - name: Installing pipenv
         uses: dschep/install-pipenv-action@v1
       
