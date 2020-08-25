@@ -22,15 +22,6 @@ jobs:
           API: ${{ secrets.API }}
           WSS: ${{ secrets.WSS }}
           TOKEN: ${{ secrets.TOKEN }}
-          TEST: "HOLA"
-
-      - name: Tesinting envs vars
-        run: |
-          printenv
-      
-      - name: ECHO TEST
-        run: |
-          echo $TEST
 
       - name: Installing pipenv
         uses: dschep/install-pipenv-action@v1
@@ -41,5 +32,9 @@ jobs:
 
       # Testing all test and stops if there is one error.
       - name: Testing with pytest
+        env: # Environment variables
+          API: ${{ secrets.API }}
+          WSS: ${{ secrets.WSS }}
+          TOKEN: ${{ secrets.TOKEN }}
         run: |
           pipenv run pytest -x
