@@ -54,7 +54,7 @@ def gql():
     _, errors_pau = gql.query(query_authors("Paulinna"))
     _, errors_baruc = gql.query(query_authors("Baruc"))
 
-    if not (errors_baruc == [] and errors_pau == []):
+    if any([errors_baruc, errors_pau]):
       raise RecordException
   except RecordException:
     sys.exit(errors_pau, errors_baruc)
