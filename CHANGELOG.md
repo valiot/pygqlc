@@ -1,10 +1,10 @@
 ## [2.0.0] - 2020-10-20
 ### Added
 - Add Documentation with sphinx
-
 ### Changed
 - Change Singleton implementation from decorator to metaclass
-
+### Fixed
+- Dependencies have been set to be installed from certain compatible version
 ### Removed
 - Singleton-decorator dependency
 
