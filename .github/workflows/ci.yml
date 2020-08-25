@@ -1,0 +1,42 @@
+name: CI PygqlClient
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Set up Python 3.7 & env vars
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.7
+        env:
+          API: ${{ secrets.API }}
+          WSS: ${{ secrets.WSS }}
+          TOKEN: ${{ secrets.TOKEN }}
+      
+      - name: Install pipenv
+        uses: dschep/install-pipenv-action@v1
+
+      - name: Cache Dependencies
+        id: cache-dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/Pipfile.lock') }}
+          restore-keys: ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          pipenv install --dev
+
+      
+      - name: Test with pytest
+        run: |
+          pipenv run pytest -x
