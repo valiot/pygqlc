@@ -1,6 +1,7 @@
 ## [2.0.0] - 2020-10-20
 ### Added
 - Add Documentation with sphinx
+- Add validation in the testing resources
 ### Changed
 - Change Singleton implementation from decorator to metaclass
 ### Fixed
