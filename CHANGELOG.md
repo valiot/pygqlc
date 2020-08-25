@@ -1,4 +1,8 @@
-## [2.0.0] - 2020-10-20
+## [2.0.1] - 2020-08-25
+### Chore
+- Change ownership to Valiot Organization
+
+## [2.0.0] - 2020-08-25
 ### Added
 - Add Documentation with sphinx
 - Add validation in the testing resources
