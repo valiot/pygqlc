@@ -27,6 +27,8 @@ jobs:
       - name: Tesinting envs vars
         run: |
           printenv
+        run: |
+          echo $TEST
 
       - name: Installing pipenv
         uses: dschep/install-pipenv-action@v1
