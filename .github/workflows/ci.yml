@@ -1,3 +1,4 @@
+# Name of the project
 name: PygqlClient [CI]
 
 # Controls when the action will run. Triggers the workflow on push or pull request
@@ -6,16 +7,18 @@ on: [push]
 
 jobs:
   tests:
+    # OS to run
     runs-on: ubuntu-latest
 
     steps:
+      # Validate every action
       - uses: actions/checkout@v1
 
       - name: Setting up Python 3.7 & env vars
         uses: actions/setup-python@v1
         with:
           python-version: 3.7
-        env: # Or as an environment variable
+        env: # Environment variables
           API: ${{ secrets.API }}
           WSS: ${{ secrets.WSS }}
           TOKEN: ${{ secrets.TOKEN }}
@@ -27,6 +30,7 @@ jobs:
         run: |
           pipenv install --dev
 
+      # Testing all test and stops if there is one error.
       - name: Testing with pytest
         run: |
           pipenv run pytest -x
