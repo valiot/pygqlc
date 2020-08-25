@@ -22,6 +22,8 @@ jobs:
           API: ${{ secrets.API }}
           WSS: ${{ secrets.WSS }}
           TOKEN: ${{ secrets.TOKEN }}
+        run: |
+          printenv
 
       - name: Installing pipenv
         uses: dschep/install-pipenv-action@v1
