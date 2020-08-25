@@ -4,7 +4,7 @@
 - Add Documentation with sphinx
 
 ### Removed
-- Singleton-decorator dependencie
+- Singleton-decorator dependency
 
 ## [1.2.0] - 2020-07-08
 ### Added
