@@ -1,3 +1,7 @@
+## [2.0.2] - 2020-09-02
+### Fix
+- Fixed helpermodule MODULENOTFOUND error.
+
 ## [2.0.1] - 2020-08-25
 ### Chore
 - Change ownership to Valiot Organization
