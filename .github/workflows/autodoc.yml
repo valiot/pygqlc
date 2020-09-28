@@ -8,26 +8,26 @@ on:
 
 jobs:
 	build-auto-doc:
-			# OS to run
-			runs-on: ubuntu-latest
-	
-			steps:
-			# Validate every action
-			- uses: actions/checkout@v1
-	
-			- name: Setting up Python 3.7 & env vars
-					uses: actions/setup-python@v1
-					with:
-					python-version: 3.7
-	
-			- name: Installing pipenv
-					uses: dschep/install-pipenv-action@v1
-			
-			- name: Installing dependencies
-					run: |
-					pipenv install --dev
-	
-			# Building autodocumentation
-			- name: Building documentation
-					run: |
-					pipenv run make html -C docs
+    # OS to run
+    runs-on: ubuntu-latest
+
+    steps:
+    # Validate every action
+    - uses: actions/checkout@v1
+
+    - name: Setting up Python 3.7 & env vars
+      uses: actions/setup-python@v1
+      with:
+      python-version: 3.7
+
+    - name: Installing pipenv
+      uses: dschep/install-pipenv-action@v1
+    
+    - name: Installing dependencies
+      run: |
+      pipenv install --dev
+
+    # Building autodocumentation
+    - name: Building documentation
+      run: |
+      pipenv run make html -C docs
