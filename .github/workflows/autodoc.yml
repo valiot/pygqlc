@@ -7,7 +7,7 @@ on:
       - master
 
 jobs:
-  tests:
+  auto-doc:
     # OS to run
     runs-on: ubuntu-latest
 
@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v1
 
       - name: Setting up Python 3.7 & env vars
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v2
         with:
           python-version: 3.7
 
@@ -25,9 +25,24 @@ jobs:
       
       - name: Installing dependencies
         run: |
-          pipenv install --dev
-
+          pip install sphinx_rtd_theme
     # Building autodocumentation
-      - name: Building documentation
+      - name: Building auto documentation 
+        uses: ammaraskar/sphinx-action@master
+        with: 
+          docs-folder: "docs/"
+      
+      - name: Commit changes
         run: |
-          pipenv run make html -C docs
+          git clone https://github.com/Poetickz/color-cone-algorithm.git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add --all
+          git commit -m "Update documentation" -a || true
+          
+      - name: Push Changes
+        uses: ad-m/github-push-action@master
+        with:
+          branch: master
+          directory: docs
+          github_token: ${{ secrets.GITHUB_TOKEN }}
