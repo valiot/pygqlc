@@ -2,12 +2,12 @@ name: Build auto documentation
 
 # On every merge to master
 on:
-	push:
-		branches:
-			- master
+  push:
+    branches:
+      - master
 
 jobs:
-	build-auto-doc:
+  build-auto-doc:
     # OS to run
     runs-on: ubuntu-latest
 
@@ -25,9 +25,9 @@ jobs:
     
     - name: Installing dependencies
       run: |
-      pipenv install --dev
+        pipenv install --dev
 
     # Building autodocumentation
     - name: Building documentation
       run: |
-      pipenv run make html -C docs
+        pipenv run make html -C docs
