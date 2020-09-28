@@ -1,0 +1,925 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pygqlc package &mdash; PYGQLClient  documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="pygqlc" href="modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home" alt="Documentation Home"> PYGQLClient
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">pygqlc</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">pygqlc package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#module-pygqlc.GraphQLClient">pygqlc.GraphQLClient module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-pygqlc.MutationBatch">pygqlc.MutationBatch module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-pygqlc.MutationParser">pygqlc.MutationParser module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-pygqlc.QueryBatch">pygqlc.QueryBatch module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-pygqlc.QueryParser">pygqlc.QueryParser module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-pygqlc.SubscriptionParser">pygqlc.SubscriptionParser module</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">PYGQLClient</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="modules.html">pygqlc</a> &raquo;</li>
+        
+      <li>pygqlc package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/pygqlc.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="pygqlc-package">
+<h1>pygqlc package<a class="headerlink" href="#pygqlc-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="module-pygqlc.GraphQLClient">
+<span id="pygqlc-graphqlclient-module"></span><h2>pygqlc.GraphQLClient module<a class="headerlink" href="#module-pygqlc.GraphQLClient" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="pygqlc.GraphQLClient.GraphQLClient">
+<em class="property">class </em><code class="sig-prename descclassname">pygqlc.GraphQLClient.</code><code class="sig-name descname">GraphQLClient</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em>, <em class="sig-param"><span class="o">**</span><span class="n">kwargs</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>The GraphQLClient class follows the singleton design pattern. It can
+make a query, mutation or subscription from an api.</p>
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.environments">
+<code class="sig-name descname">environments</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.environments" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dictonary with all envieroments. Defaults to
+empty dict.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.environment">
+<code class="sig-name descname">environment</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.environment" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dictionary with the data of the actual enviroment.
+Defaults to None.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.ws_url">
+<code class="sig-name descname">ws_url</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.ws_url" title="Permalink to this definition">¶</a></dt>
+<dd><p>String with the WSS url. Defaults to None.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>string</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.subs">
+<code class="sig-name descname">subs</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.subs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dictionary with all active subscriptions in the instance.
+Defaults to empty dict.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.sub_counter">
+<code class="sig-name descname">sub_counter</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.sub_counter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Count of active subscriptions in the instance.
+Defaults to 0.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.sub_router_thread">
+<code class="sig-name descname">sub_router_thread</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.sub_router_thread" title="Permalink to this definition">¶</a></dt>
+<dd><p>Thread with all subscription logic.
+Defaults to None.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>thread</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.wss_conn_halted">
+<code class="sig-name descname">wss_conn_halted</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.wss_conn_halted" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if the wss connection is halted.
+Defaults to False.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>boolean</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.closing">
+<code class="sig-name descname">closing</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.closing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if all subscriptions were successfully closed.
+Defaults to False.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>boolean</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.unsubscribing">
+<code class="sig-name descname">unsubscribing</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.unsubscribing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if all subscriptions were successfully
+canceled. Defaults to False.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>boolean</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.websocket_timeout">
+<code class="sig-name descname">websocket_timeout</code><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.websocket_timeout" title="Permalink to this definition">¶</a></dt>
+<dd><p>seconds of the websocket timeout. Defaults to
+60.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="o">&lt;</span><span class="n">With</span><span class="o">&gt;</span> <span class="n">clause</span><span class="p">:</span>
+<span class="go">  &#39;&#39;&#39;</span>
+<span class="go">  client = GraphQLClient()</span>
+<span class="go">  with client.enterEnvironment(&#39;dev&#39;) as gql:</span>
+<span class="go">      data, errors = gql.query(&#39;{lines(limit:2){id}}&#39;)</span>
+<span class="go">      print(data, errors)</span>
+<span class="go">  &#39;&#39;&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">setEnvironment</span><span class="p">:</span>
+<span class="go">  &#39;&#39;&#39;</span>
+<span class="go">  client = GraphQLClient()</span>
+<span class="go">  client.addEnvironment(&#39;dev&#39;, &quot;https://heineken.valiot.app/&quot;)</span>
+<span class="go">  client.addHeader(</span>
+<span class="go">      environment=&#39;dev&#39;,</span>
+<span class="go">      header={&#39;Authorization&#39;: dev_token})</span>
+<span class="go">  data, errors = gql.query(&#39;{lines(limit:2){id}}&#39;)</span>
+<span class="go">  print(data, errors)</span>
+<span class="go">  &#39;&#39;&#39;</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.addEnvironment">
+<code class="sig-name descname">addEnvironment</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">name</span></em>, <em class="sig-param"><span class="n">url</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">wss</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">headers</span><span class="o">=</span><span class="default_value">{}</span></em>, <em class="sig-param"><span class="n">default</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">timeoutWebsocket</span><span class="o">=</span><span class="default_value">60</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.addEnvironment" title="Permalink to this definition">¶</a></dt>
+<dd><p>This fuction adds a new environment to the instance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>string</em>) – Name of the environment.</p></li>
+<li><p><strong>url</strong> (<em>string</em><em>, </em><em>optional</em>) – URL of the environmet. Defaults to None.</p></li>
+<li><p><strong>wss</strong> (<em>string</em><em>, </em><em>optional</em>) – URL of the WSS of the environment. Defaults to None.</p></li>
+<li><p><strong>headers</strong> (<em>dict</em><em>, </em><em>optional</em>) – A dictionary with the headers
+(like authorization). Defaults to {}.</p></li>
+<li><p><strong>default</strong> (<em>bool</em><em>, </em><em>optional</em>) – Checks if the new environment will be the
+default one of the instance. Defaults to False.</p></li>
+<li><p><strong>timeoutWebsocket</strong> (<em>int</em><em>, </em><em>optional</em>) – Seconds of the timeout of the
+websocket. Defaults to 60.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.addHeader">
+<code class="sig-name descname">addHeader</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">environment</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">header</span><span class="o">=</span><span class="default_value">{}</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.addHeader" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function updates the header of an existing environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>environment</strong> (<em>string</em><em>, </em><em>optional</em>) – Name of the environment. Defaults to None.</p></li>
+<li><p><strong>header</strong> (<em>dict</em><em>, </em><em>optional</em>) – New headers to add. Defaults to {}.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.batchMutate">
+<code class="sig-name descname">batchMutate</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">label</span><span class="o">=</span><span class="default_value">'mutation'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.batchMutate" title="Permalink to this definition">¶</a></dt>
+<dd><p>This fuction makes a batchs of mutation transactions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>label</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the mutation batch. Defaults to ‘mutation’.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns a MutationBatch Object.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(<a class="reference internal" href="#pygqlc.MutationBatch.MutationBatch" title="pygqlc.MutationBatch.MutationBatch">MutationBatch</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.batchQuery">
+<code class="sig-name descname">batchQuery</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">label</span><span class="o">=</span><span class="default_value">'query'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.batchQuery" title="Permalink to this definition">¶</a></dt>
+<dd><p>This fuction makes a batchs of query transactions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>label</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the query batch. Defaults to ‘query’.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns a MutationBatch Object.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(<a class="reference internal" href="#pygqlc.MutationBatch.MutationBatch" title="pygqlc.MutationBatch.MutationBatch">MutationBatch</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.close">
+<code class="sig-name descname">close</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.close" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function ends and resets all subscriptions and related attributes
+to their default values.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.enterEnvironment">
+<code class="sig-name descname">enterEnvironment</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">name</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.enterEnvironment" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function makes a safe access to an environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>string</em>) – Name of the environment.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns self instance for the use with <cite>with</cite> keyword.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(self)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.execute">
+<code class="sig-name descname">execute</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">query</span></em>, <em class="sig-param"><span class="n">variables</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.execute" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function executes the intructions of a query or mutation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>query</strong> (<em>string</em>) – Graphql instructions.</p></li>
+<li><p><strong>variables</strong> (<em>string</em><em>, </em><em>optional</em>) – Variables of the transaction. Defaults
+to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>Exception</strong> – There is not setted a main environment.</p></li>
+<li><p><strong>Exception</strong> – Transactions format error.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Raw GraphqlResponse.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>[JSON]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.mutate">
+<code class="sig-name descname">mutate</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">mutation</span></em>, <em class="sig-param"><span class="n">variables</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">flatten</span><span class="o">=</span><span class="default_value">True</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.mutate" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function makes a mutation transaction to the actual environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mutation</strong> (<em>string</em>) – Graphql mutation instructions.</p></li>
+<li><p><strong>variables</strong> (<em>string</em><em>, </em><em>optional</em>) – Mutation variables. Defaults to None.</p></li>
+<li><p><strong>flatten</strong> (<em>bool</em><em>, </em><em>optional</em>) – Check if GraphqlResponse should be flatten or
+not. Defaults to True.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns the GraphqlResponse of the mutation.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(GraphqlResponse)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.query">
+<code class="sig-name descname">query</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">query</span></em>, <em class="sig-param"><span class="n">variables</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">flatten</span><span class="o">=</span><span class="default_value">True</span></em>, <em class="sig-param"><span class="n">single_child</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.query" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function makes a query transaction to the actual environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>query</strong> (<em>string</em>) – Graphql query instructions.</p></li>
+<li><p><strong>variables</strong> (<em>string</em><em>, </em><em>optional</em>) – Query variables. Defaults to None.</p></li>
+<li><p><strong>flatten</strong> (<em>bool</em><em>, </em><em>optional</em>) – Check if GraphqlResponse should be flatten or
+not. Defaults to True.</p></li>
+<li><p><strong>single_child</strong> (<em>bool</em><em>, </em><em>optional</em>) – Check if GraphqlResponse only has one
+element. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns the GraphqlResponse of the query.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(GraphqlResponse)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.query_one">
+<code class="sig-name descname">query_one</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">query</span></em>, <em class="sig-param"><span class="n">variables</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.query_one" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function makes a single child query.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>query</strong> (<em>string</em>) – Graphql query instructions.</p></li>
+<li><p><strong>variables</strong> (<em>string</em><em>, </em><em>optional</em>) – Query variables. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns the GraphqlResponse of the query.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(GraphqlResponse)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.resetSubsConnection">
+<code class="sig-name descname">resetSubsConnection</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.resetSubsConnection" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function resets all subscriptions connections.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Returns if the reconnection has been possible.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>(boolean)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.setEnvironment">
+<code class="sig-name descname">setEnvironment</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">name</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.setEnvironment" title="Permalink to this definition">¶</a></dt>
+<dd><p>This functions sets the actual environment of the instance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>string</em>) – Name of the environment.</p>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><p><strong>Exception</strong> – The environment’s name doesn’t exists in the environment list.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.setTimeoutWebsocket">
+<code class="sig-name descname">setTimeoutWebsocket</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">seconds</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.setTimeoutWebsocket" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function sets the webscoket’s timeout.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>seconds</strong> (<em>int</em>) – Time for the timeout.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.setUrl">
+<code class="sig-name descname">setUrl</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">environment</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">url</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.setUrl" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function sets a new url to an existing environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>environment</strong> (<em>string</em><em>, </em><em>optional</em>) – Name of the environment. Defaults to None.</p></li>
+<li><p><strong>url</strong> (<em>string</em><em>, </em><em>optional</em>) – New URL for the enviroment. Defaults to None.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.setWss">
+<code class="sig-name descname">setWss</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">environment</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">url</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.setWss" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function sets a new WSS to an existing environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>environment</strong> (<em>string</em><em>, </em><em>optional</em>) – Name of the environment. Defaults to None.</p></li>
+<li><p><strong>url</strong> (<em>string</em><em>, </em><em>optional</em>) – New WSS URL for the environment. Defaults to None.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.GraphQLClient.GraphQLClient.subscribe">
+<code class="sig-name descname">subscribe</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">query</span></em>, <em class="sig-param"><span class="n">variables</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">callback</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">flatten</span><span class="o">=</span><span class="default_value">True</span></em>, <em class="sig-param"><span class="n">_id</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.GraphQLClient.subscribe" title="Permalink to this definition">¶</a></dt>
+<dd><p>This functions makes a subscription to the actual environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>query</strong> (<em>string</em>) – Graphql subscription instructions.</p></li>
+<li><p><strong>variables</strong> (<em>string</em><em>, </em><em>optional</em>) – Subscription variables. Defaults to None.</p></li>
+<li><p><strong>callback</strong> (<em>function</em><em>, </em><em>optional</em>) – Trigger function of the subscription.
+Defaults to None.</p></li>
+<li><p><strong>flatten</strong> (<em>bool</em><em>, </em><em>optional</em>) – Check if GraphqlResponse should be flatten or
+not. Defaults to True.</p></li>
+<li><p><strong>_id</strong> (<em>int</em><em>, </em><em>optional</em>) – Subscription id. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns the GraphqlResponse of the subscription.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(GraphqlResponse)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt id="pygqlc.GraphQLClient.data_flatten">
+<code class="sig-prename descclassname">pygqlc.GraphQLClient.</code><code class="sig-name descname">data_flatten</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">data</span></em>, <em class="sig-param"><span class="n">single_child</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.data_flatten" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function formats the data structure of a GqlResponse.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>dict</em><em>, </em><em>list</em>) – The data of a GqlResponse.</p></li>
+<li><p><strong>single_child</strong> (<em>bool</em><em>, </em><em>optional</em>) – Checks if the data has only one element.</p></li>
+<li><p><strong>to False.</strong> (<em>Defaults</em>) – </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns a formatted data.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(dict)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="pygqlc.GraphQLClient.has_errors">
+<code class="sig-prename descclassname">pygqlc.GraphQLClient.</code><code class="sig-name descname">has_errors</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">result</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.has_errors" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function checks if a GqlResponse has any errors.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>result</strong> (<em>GqlResponse</em>) – [data, errors]</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns <cite>True</cite> if a transaction has at least one error.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(boolean)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="pygqlc.GraphQLClient.safe_pop">
+<code class="sig-prename descclassname">pygqlc.GraphQLClient.</code><code class="sig-name descname">safe_pop</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">data</span></em>, <em class="sig-param"><span class="n">index</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">default</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.GraphQLClient.safe_pop" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function pops safetly a GqlResponse from a subscription queue.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>list</em>) – Is the list of GqlResponse that caught the subscription.</p></li>
+<li><p><strong>index</strong> (<em>int</em><em>, </em><em>optional</em>) – Index of the subscription queue. Defaults to 0.</p></li>
+<li><p><strong>default</strong> (<em>None</em><em>, </em><em>optional</em>) – Define the default message. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Returns the GqlResponse. If the subscription queue is</dt><dd><p>empty, it returns the default message.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>[GqlResponse]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+<div class="section" id="module-pygqlc.MutationBatch">
+<span id="pygqlc-mutationbatch-module"></span><h2>pygqlc.MutationBatch module<a class="headerlink" href="#module-pygqlc.MutationBatch" title="Permalink to this headline">¶</a></h2>
+<dl class="py exception">
+<dt id="pygqlc.MutationBatch.InvalidMutationException">
+<em class="property">exception </em><code class="sig-prename descclassname">pygqlc.MutationBatch.</code><code class="sig-name descname">InvalidMutationException</code><a class="headerlink" href="#pygqlc.MutationBatch.InvalidMutationException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>This class is to define the InvalidMutationException</p>
+</dd></dl>
+
+<dl class="py class">
+<dt id="pygqlc.MutationBatch.MutationBatch">
+<em class="property">class </em><code class="sig-prename descclassname">pygqlc.MutationBatch.</code><code class="sig-name descname">MutationBatch</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">client</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">label</span><span class="o">=</span><span class="default_value">'mutation'</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.MutationBatch.MutationBatch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>This is the mutation batch class, it can generate and execute a batch of
+graphql’s transaction.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>client</strong> (<em>GraphQLClient Object</em><em>, </em><em>optional</em>) – Instance of the GraphQLClient.
+Defaults to None.</p></li>
+<li><p><strong>label</strong> (<em>str</em><em>, </em><em>optional</em>) – Label that will get each transaction of the batch.
+Defaults to ‘mutation’.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">Batch</span> <span class="n">example</span><span class="p">:</span>
+<span class="go">  with gql.batchMutate(label=&#39;mut&#39;) as batch:</span>
+<span class="go">    for author in authors:</span>
+<span class="go">      batch.add(</span>
+<span class="go">        muts.create_author, {</span>
+<span class="go">          &#39;name&#39;: author[&#39;name&#39;]</span>
+<span class="go">        }</span>
+<span class="go">      )</span>
+<span class="go">    data, errors = batch.execute()</span>
+<span class="go">    print(data)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">Mutation</span> <span class="n">simple</span> <span class="n">example</span><span class="p">:</span>
+<span class="go">  mutation {</span>
+<span class="go">    label_1: mutationName(</span>
+<span class="go">      param1: valx</span>
+<span class="go">      param2: valy</span>
+<span class="go">    ){</span>
+<span class="go">      response1</span>
+<span class="go">    }</span>
+<span class="go">    label_2: mutationName2(</span>
+<span class="go">      param1: valz</span>
+<span class="go">    ){</span>
+<span class="go">      response2</span>
+<span class="go">    }</span>
+<span class="go">  }</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">Mutation</span> <span class="nb">complex</span> <span class="n">example</span><span class="p">:</span>
+<span class="go">  mutation MutationAlias(</span>
+<span class="go">    &gt;&gt;&gt;$param1: Type1</span>
+<span class="go">    $param2: Type2</span>
+<span class="go">    $param3: Type3</span>
+<span class="go">    ){</span>
+<span class="go">    label_1: mutationName(</span>
+<span class="go">      param1: $param1</span>
+<span class="go">      param2: $param2</span>
+<span class="go">    ){</span>
+<span class="go">      response1</span>
+<span class="go">    }</span>
+<span class="go">    label_2: mutationName2(</span>
+<span class="go">      param1: $param3</span>
+<span class="go">    ){</span>
+<span class="go">      response2</span>
+<span class="go">    }</span>
+<span class="go">  }</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt id="pygqlc.MutationBatch.MutationBatch.append">
+<code class="sig-name descname">append</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">doc</span></em>, <em class="sig-param"><span class="n">variables</span><span class="o">=</span><span class="default_value">{}</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.MutationBatch.MutationBatch.append" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function makes each transactions for the batch.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>doc</strong> (<em>string</em>) – GraphQL transaction intructions.</p></li>
+<li><p><strong>variables</strong> (<em>dict</em><em>, </em><em>optional</em>) – Variables of the transaction. Defaults to {}.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><p><a class="reference internal" href="#pygqlc.MutationBatch.InvalidMutationException" title="pygqlc.MutationBatch.InvalidMutationException"><strong>InvalidMutationException</strong></a> – It raises when the doc is invalid.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.MutationBatch.MutationBatch.execute">
+<code class="sig-name descname">execute</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.MutationBatch.MutationBatch.execute" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function can execute a TransactionBatch.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Returns the Graphql response.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>(GraphqlResponse)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.MutationBatch.MutationBatch.get_doc">
+<code class="sig-name descname">get_doc</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.MutationBatch.MutationBatch.get_doc" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function builds the transaction.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Returns the full transaction, ready to execute.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>(string)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-pygqlc.MutationParser">
+<span id="pygqlc-mutationparser-module"></span><h2>pygqlc.MutationParser module<a class="headerlink" href="#module-pygqlc.MutationParser" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="pygqlc.MutationParser.MutationParser">
+<em class="property">class </em><code class="sig-prename descclassname">pygqlc.MutationParser.</code><code class="sig-name descname">MutationParser</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">gql_doc</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.MutationParser.MutationParser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>This is the MutationParser class, it can parse a graphql instructions.</p>
+<dl class="py method">
+<dt id="pygqlc.MutationParser.MutationParser.format_value">
+<code class="sig-name descname">format_value</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">value</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.MutationParser.MutationParser.format_value" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function formats document’s values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>value</strong> (<em>any</em>) – Value that want to format.</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Returns a formated string.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(string)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.MutationParser.MutationParser.parse">
+<code class="sig-name descname">parse</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.MutationParser.MutationParser.parse" title="Permalink to this definition">¶</a></dt>
+<dd><p>This fuction parses and validates the transaction instructions.3</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Returns if the parsed doc was succesful.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>(boolean)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="pygqlc.MutationParser.MutationParser.validate">
+<code class="sig-name descname">validate</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.MutationParser.MutationParser.validate" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>This function checks if the transaction instructions has match with the</dt><dd><p>transaction regex.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Returns if it is valid or not.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>(boolean)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-pygqlc.QueryBatch">
+<span id="pygqlc-querybatch-module"></span><h2>pygqlc.QueryBatch module<a class="headerlink" href="#module-pygqlc.QueryBatch" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-pygqlc.QueryParser">
+<span id="pygqlc-queryparser-module"></span><h2>pygqlc.QueryParser module<a class="headerlink" href="#module-pygqlc.QueryParser" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="pygqlc.QueryParser.QueryParser">
+<em class="property">class </em><code class="sig-prename descclassname">pygqlc.QueryParser.</code><code class="sig-name descname">QueryParser</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">gql_doc</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.QueryParser.QueryParser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt id="pygqlc.QueryParser.QueryParser.validate">
+<code class="sig-name descname">validate</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.QueryParser.QueryParser.validate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-pygqlc.SubscriptionParser">
+<span id="pygqlc-subscriptionparser-module"></span><h2>pygqlc.SubscriptionParser module<a class="headerlink" href="#module-pygqlc.SubscriptionParser" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt id="pygqlc.SubscriptionParser.SubscriptionParser">
+<em class="property">class </em><code class="sig-prename descclassname">pygqlc.SubscriptionParser.</code><code class="sig-name descname">SubscriptionParser</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">gql_doc</span></em><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.SubscriptionParser.SubscriptionParser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt id="pygqlc.SubscriptionParser.SubscriptionParser.validate">
+<code class="sig-name descname">validate</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pygqlc.SubscriptionParser.SubscriptionParser.validate" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="modules.html" class="btn btn-neutral float-left" title="pygqlc" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; Copyright 2020, Valiot
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
