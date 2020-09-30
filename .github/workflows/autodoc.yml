@@ -1,0 +1,46 @@
+name: Build auto documentation
+
+# On every merge to master
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  auto-doc:
+    # OS to run
+    runs-on: ubuntu-latest
+
+    steps:
+      # Validate every action
+      - uses: actions/checkout@v1
+
+      - name: Setting up Python 3.7 & env vars
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+
+    # Building autodocumentation
+      - name: Building auto documentation 
+        uses: ammaraskar/sphinx-action@master
+        with: 
+          docs-folder: "docs/"
+      
+      - name: Commit changes
+        run: |
+          git clone https://github.com/valiot/pygqlc.git
+          git config --global user.email "valbot@valiot.io"
+          git config --global user.name "ValBot"
+          git checkout origin/Documentation
+          git pull origin Documentation
+          git add --all
+          git reset -- .gitignore
+          git commit -m "Update documentation"
+          
+      - name: Push Changes
+        uses: ad-m/github-push-action@master
+        with:
+          branch: Documentation
+          directory: docs
+          force: true 
+          github_token: ${{ secrets.GITHUB_TOKEN }}
