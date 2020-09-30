@@ -32,11 +32,13 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add --all
+          git reset
+          git reset -- .gitignore
           git commit -m "Update documentation" -a || true
           
       - name: Push Changes
         uses: ad-m/github-push-action@master
         with:
-          branch: master
+          branch: Documentation
           directory: docs
           github_token: ${{ secrets.GITHUB_TOKEN }}
