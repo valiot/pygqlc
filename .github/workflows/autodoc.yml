@@ -28,7 +28,6 @@ jobs:
       
       - name: Commit changes
         run: |
-          git clone https://github.com/valiot/pygqlc.git
           git config --global user.email "valbot@valiot.io"
           git config --global user.name "ValBot"
           git checkout origin/Documentation
