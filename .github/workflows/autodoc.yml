@@ -28,16 +28,19 @@ jobs:
       
       - name: Commit changes
         run: |
-          git clone https://github.com/Poetickz/color-cone-algorithm.git
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git clone https://github.com/valiot/pygqlc.git
+          git config --global user.email "valbot@valiot.io"
+          git config --global user.name "ValBot"
+          git checkout origin/Documentation
+          git pull origin Documentation
           git add --all
           git reset -- .gitignore
-          git commit -m "Update documentation" -a || true
+          git commit -m "Update documentation"
           
       - name: Push Changes
         uses: ad-m/github-push-action@master
         with:
           branch: Documentation
           directory: docs
+          force: true 
           github_token: ${{ secrets.GITHUB_TOKEN }}
