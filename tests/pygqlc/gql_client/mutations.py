@@ -1,6 +1,6 @@
 author_activate = '''
   mutation {
-    upsertAuthor(name: "Paulinna", author: { active: true }) {
+    upsertAuthor(findBy: {name: "Elon", lastName: "Musk"}, author: { active: true }) {
       successful
       messages {
         field
@@ -16,7 +16,7 @@ author_activate = '''
 
 author_set_active = '''
   mutation SetActive($active: Boolean!){
-    upsertAuthor(name: "Paulinna", author: { active: $active }) {
+    upsertAuthor(findBy: {name: "Elon", lastName: "Musk"}, author: { active: $active }) {
       successful
       messages {
         field

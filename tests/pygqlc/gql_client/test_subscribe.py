@@ -32,8 +32,8 @@ def test_sub_routing_loop_message(gql):
   _ = gql.subscribe(subs.sub_author_updated, callback=on_author_updated)
   runs = gql.subs[sub_id]['runs']
   # * This should activate the subscription at least once:
-  _ = gql.mutate(muts.update_any_author_active, {'name': 'Baruc', 'active': True})
-  _ = gql.mutate(muts.update_any_author_active, {'name': 'Baruc', 'active': False})
+  _ = gql.mutate(muts.update_any_author_active, {'name': 'Elon', 'lastname': 'Musk', 'active': True})
+  _ = gql.mutate(muts.update_any_author_active, {'name': 'Elon', 'lastname': 'Musk', 'active': False})
   # ! We don't know how long will it take for the server to respond to the subscription:
   sub_triggered = False
   elapsed = 0
@@ -53,8 +53,8 @@ def test_sub_default_callback(gql):
   _ = gql.subscribe(subs.sub_author_updated)
   runs = gql.subs[sub_id]['runs']
   # * This should activate the subscription at least once:
-  _ = gql.mutate(muts.update_any_author_active, {'name': 'Baruc', 'active': True})
-  _ = gql.mutate(muts.update_any_author_active, {'name': 'Baruc', 'active': False})
+  _ = gql.mutate(muts.update_any_author_active, {'name': 'Elon', 'lastname': 'Musk', 'active': True})
+  _ = gql.mutate(muts.update_any_author_active, {'name': 'Elon', 'lastname': 'Musk', 'active': False})
   # ! We don't know how long will it take for the server to respond to the subscription:
   sub_triggered = False
   elapsed = 0
