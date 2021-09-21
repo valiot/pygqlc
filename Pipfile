@@ -15,10 +15,10 @@ sphinx = "3.1"
 sphinx-rtd-theme = "==0.5.0"
 
 [packages]
-requests = "~=2.24.0"
-pydash = "~=4.8.0"
-tenacity = "~=6.2.0"
+requests = "~=2.26"
+pydash = "~=5.0"
+tenacity = "~=6.3"
 websocket-client = "==0.54.0"
 
 [requires]
-python_version = "3.7"
+python_version = "3.9"

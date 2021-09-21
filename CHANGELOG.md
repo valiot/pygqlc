@@ -1,3 +1,11 @@
+## [2.0.3] - 2021-09-21
+
+### Fix
+- Outdated tests for latest version of valiot-app
+
+### Chore
+- Bump dependencies versions.
+
 ## [2.0.2] - 2020-09-02
 ### Fix
 - Fixed helpermodule MODULENOTFOUND error.
