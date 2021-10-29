@@ -1,3 +1,9 @@
+## [2.0.4] - 2021-10-29
+
+### Fix
+- Upgrade dependencies in setup.py
+
+
 ## [2.0.3] - 2021-09-21
 
 ### Fix
