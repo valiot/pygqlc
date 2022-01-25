@@ -185,6 +185,10 @@ mutation{
   }
 }
 ```
+### Post timeout:
+You can set a post timeout to avoid an inactive process. 
+
+Use `gql.setPostTimeout(seconds)`, or directly in the environment `gql.addEnvironment(post_timeout=seconds)`. Default port_timeout is 60 seconds
 
 ### Websocket timeout:
 You can set a websocket timeout to keep subscriptions alive. 
