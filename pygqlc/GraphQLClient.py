@@ -526,7 +526,7 @@ class GraphQLClient(metaclass=Singleton):
 
   # * END BATCH function **************************************
   # * helper methods
-  def addEnvironment(self, name, url=None, wss=None, headers={}, default=False, timeoutWebsocket=60):
+  def addEnvironment(self, name, url=None, wss=None, headers={}, default=False, timeoutWebsocket=60, post_timeout=60):
     """This fuction adds a new environment to the instance.
 
     Args:
@@ -539,12 +539,15 @@ class GraphQLClient(metaclass=Singleton):
          default one of the instance. Defaults to False.
         timeoutWebsocket (int, optional): Seconds of the timeout of the
          websocket. Defaults to 60.
+        post_timeout (int, optional): Timeout in seconds for each post. 
+         Defaults to 60.
     """
     self.environments.update({
       name: {
         'url': url,
         'wss': wss,
-        'headers': headers
+        'headers': headers,
+        'post_timeout': post_timeout
       }
     })
     if default:
@@ -603,6 +606,18 @@ class GraphQLClient(metaclass=Singleton):
       raise Exception(f'selected environment not set ({name})')
     self.environment = name
 
+  def setPostTimeout(self, environment=None, post_timeout=60):
+    """This function sets the post's timeout.
+
+    Args:
+        seconds (int): Time for the timeout.
+    """
+    # if environment is not selected, use current environment
+    if not environment:
+      environment = self.environment
+    self.environments[environment].update({'post_timeout': post_timeout})
+
+  
   def setTimeoutWebsocket(self, seconds):
     """This function sets the webscoket's timeout.
 
@@ -641,9 +656,10 @@ class GraphQLClient(metaclass=Singleton):
       'Content-Type': 'application/json'
       }
     env_headers = env.get('headers', None)
+    post_timeout = env.get('post_timeout', '60')
     if env_headers:
       headers.update(env_headers)
-    response = requests.post(env['url'], json=data, headers=headers)
+    response = requests.post(env['url'], json=data, headers=headers, timeout=int(post_timeout))
     if response.status_code == 200:
       return response.json()
     else:

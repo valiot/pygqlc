@@ -45,6 +45,17 @@ def test_add_header_environment(gql):
   # * teardown test (we don't want dummy headers in the test requests)
   gql.environments[env]['headers'] = original_headers
 
+def test_change_post_timeout(gql):
+  import os
+  test_post_timeout = 103
+  env = gql.environment
+  post_timeout = gql.environments[env]['post_timeout']
+  gql.setPostTimeout(post_timeout=test_post_timeout)
+  new_post_timeout = gql.environments[env]['post_timeout']
+  gql.setPostTimeout(post_timeout=post_timeout)  # return Timeout to default
+  assert (new_post_timeout == test_post_timeout) and (post_timeout != new_post_timeout), \
+    'Post timeout should set on current environment as default'
+
 def test_set_bad_environment(gql):
   with pytest.raises(Exception):
     assert gql.setEnvironment('bad_environ'), \

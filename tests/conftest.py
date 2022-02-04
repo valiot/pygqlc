@@ -1,3 +1,4 @@
+from socket import timeout
 import pytest
 from pygqlc import GraphQLClient # main package
 
@@ -33,12 +34,15 @@ def gql():
   except EnvironmentError:
     sys.exit("Check your environment variables")
 
+  post_timeout_str = (os.environ.get('POST_TIMEOUT') or '10')
+
   gql = GraphQLClient()
   gql.addEnvironment(
     'dev',
     url=os.environ.get('API'),
     wss=os.environ.get('WSS'),
     headers={'Authorization': os.environ.get('TOKEN')},
+    post_timeout=int(post_timeout_str),
     default=True)
 
 
