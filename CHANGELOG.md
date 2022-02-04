@@ -1,3 +1,8 @@
+## [2.1.0] - 2022-02-04
+
+### Added
+- Add `post_timeout` configuration to avoid stale POST requests
+
 ## [2.0.4] - 2021-10-29
 
 ### Fix
