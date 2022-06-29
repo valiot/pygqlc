@@ -22,7 +22,7 @@ GQLResponse (type variable): [data[field(string)], errors[message(string),
 
 from .MutationBatch import MutationBatch
 
-GQL_WS_SUBPROTOCOL = "graphql-ws"
+GQL_WS_SUBPROTOCOL = "graphql-transport-ws"
 
 
 def has_errors(result):
@@ -146,6 +146,8 @@ class GraphQLClient(metaclass=Singleton):
     self.closing = False
     self.unsubscribing = False
     self.websocket_timeout = 60
+    self.pingIntervalTime = 10
+    self.pingTimer = time.time()
   
   # * with <Object> implementation
   def __enter__(self):
@@ -348,13 +350,19 @@ class GraphQLClient(metaclass=Singleton):
         print(f'original message: {e}')
         self.wss_conn_halted = True
         continue
-      if message['type'] == 'data':
+      if message['type'] == 'next':
         _id = py_.get(message, 'id')
         self.subs[_id]['queue'].append(message)
-      elif message['type'] in['connection_ack', 'ka', 'complete']:
+      elif message['type'] == 'pong':
+        print('pong')
+      elif message['type'] in ['connection_ack', 'ka', 'complete']:
         pass
       else:
         print(f'unknown msg type: {message}')
+      if ((time.time() - self.pingTimer) > self.pingIntervalTime):
+        print('ping')
+        self.pingTimer = time.time()
+        self._conn.send(json.dumps({ 'type': 'ping' }))
       time.sleep(0.01)
   
   def _resubscribe_all(self):
@@ -467,7 +475,7 @@ class GraphQLClient(metaclass=Singleton):
       self.sub_counter += 1
       _id = str(self.sub_counter)
     self.subs.update({_id: {'running': False, 'kill': False}})
-    frame = {'id': _id, 'type': 'start', 'payload': payload}
+    frame = {'id': _id, 'type': 'subscribe', 'payload': payload}
     self._conn.send(json.dumps(frame))
     return _id
 
