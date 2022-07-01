@@ -24,6 +24,22 @@ from .MutationBatch import MutationBatch
 
 GQL_WS_SUBPROTOCOL = "graphql-transport-ws"
 
+def is_ws_payloadErrors_msg(message):
+  errors = py_.get(message, 'payload.errors')
+  if (errors):
+    return True
+  return False
+  
+def is_ws_connection_init_msg(message):
+  data = py_.get(message, 'payload.data', {})
+  if not data:
+    return False # may have an error, but is not connection init message
+  keys = list(data.keys())
+  if (len(keys) > 0):
+    body = data[keys[0]]
+    if (body == None):
+      return True # this message is a connection init one, with the shape: {data: {datumCreatedOrSomething: None}}
+  return False
 
 def has_errors(result):
   """This function checks if a GqlResponse has any errors.
@@ -146,7 +162,7 @@ class GraphQLClient(metaclass=Singleton):
     self.closing = False
     self.unsubscribing = False
     self.websocket_timeout = 60
-    self.pingIntervalTime = 10
+    self.pingIntervalTime = 15
     self.pingTimer = time.time()
   
   # * with <Object> implementation
@@ -261,7 +277,7 @@ class GraphQLClient(metaclass=Singleton):
           errors.extend(data.get('messages', []))
     return data, errors
   # * Subscription high level implementation ******************
-  def subscribe(self, query, variables=None, callback=None, flatten=True, _id=None):
+  def subscribe(self, query, variables=None, callback=None, flatten=True, _id=None, on_error_callback=None ):
     """This functions makes a subscription to the actual environment.
 
     Args:
@@ -283,18 +299,20 @@ class GraphQLClient(metaclass=Singleton):
       else:
         print('Error creating WSS connection for subscription')
         return None
-    self._conn_init()
+
     payload = {'query': query, 'variables': variables}
     _cb = callback if callback is not None else self._on_message
+    _ecb = on_error_callback
     _id = self._start(payload, _id)
     self.subs[_id].update({
-      'thread': threading.Thread(target=self._subscription_loop, args=(_cb, _id)),
+      'thread': threading.Thread(target=self._subscription_loop, args=(_cb, _id, _ecb)),
       'flatten': flatten,
       'queue': [],
       'runs': 0,
       'query': query,
       'variables': variables,
-      'callback': callback
+      'callback': callback,
+      'on_error_callback': on_error_callback
     })
     self.subs[_id]['thread'].start()
     # ! Create unsubscribe function for this specific thread:
@@ -350,19 +368,30 @@ class GraphQLClient(metaclass=Singleton):
         print(f'original message: {e}')
         self.wss_conn_halted = True
         continue
-      if message['type'] == 'next':
+      except Exception as e:
+         print(f'Some error trying to receive WSS')
+         print(f'original message: {e}')
+         self.wss_conn_halted = True
+         continue
+
+      if 'id' in message.keys(): 
+        # if the message has an ID request, it will be handled by the _subscription_loop
         _id = py_.get(message, 'id')
-        self.subs[_id]['queue'].append(message)
+        active_sub = self.subs.get(_id)
+        # the connection may not be active due to:
+        # 1. server error (incorrect ID sent)
+        # 2. race condition (we closed connection, but a message was already on its way here) 
+        if (not active_sub):
+          continue
+        active_sub['queue'].append(message)
+      elif message['type'] == 'connection_ack':
+        print('ConnectionAck with the server.')
+        pass
       elif message['type'] == 'pong':
-        print('pong')
-      elif message['type'] in ['connection_ack', 'ka', 'complete']:
         pass
       else:
         print(f'unknown msg type: {message}')
-      if ((time.time() - self.pingTimer) > self.pingIntervalTime):
-        print('ping')
-        self.pingTimer = time.time()
-        self._conn.send(json.dumps({ 'type': 'ping' }))
+
       time.sleep(0.01)
   
   def _resubscribe_all(self):
@@ -380,11 +409,12 @@ class GraphQLClient(metaclass=Singleton):
         query=old_subs[sub_id]['query'],
         variables=old_subs[sub_id]['variables'],
         callback=old_subs[sub_id]['callback'],
+        on_error_callback=old_subs[sub_id]['on_error_callback'],
         flatten=old_subs[sub_id]['flatten'],
         _id=sub_id,
       )
   
-  def _subscription_loop(self, _cb, _id):
+  def _subscription_loop(self, _cb, _id, _ecb):
     self.subs[_id].update({'running': True})
     while self.subs[_id]['running']:
       aborted = self.subs[_id]['kill']
@@ -395,22 +425,35 @@ class GraphQLClient(metaclass=Singleton):
       if not message:
         time.sleep(0.01)
         continue
-      errors = py_.get(message, 'payload.errors', [])
-      if message['type'] == 'error' or message['type'] == 'complete':
+
+      # Message type handling
+      if message['type'] == 'next':
+        pass # continue with payload handling
+      elif message['type'] == 'error':
+        if _ecb: _ecb(message)
         print(f'stopping subscription {_id} on {message["type"]}')
         break
-      if message['type'] == 'connection_ack' or message['type'] == 'ka':
-        pass
-      elif len(errors) > 0:
-        # ! Error creating subscription, abort it:
-        error_msg = py_.get(errors, '0.message', '')
-        print(f'Error creating subscription{error_msg and ":"}\n{error_msg}')
+      elif message['type'] == 'complete':
+        print(f'stopping subscription {_id} on {message["type"]}')
         break
       else:
-        # * GraphQL message received, proccess it:
+        print(f'unknown msg type: {message}')
+        continue
+
+      # Payload handling
+      if is_ws_payloadErrors_msg(message):
+        if _ecb:
+          _ecb(message)
+          continue
+        print('Subscription message has payload Errors')
+        print(message)
+      elif is_ws_connection_init_msg(message):
+        print('Subscription successfully initialized')
+      else:
         gql_msg = self._clean_sub_message(_id, message)
-        _cb(gql_msg)
-        self.subs[_id]['runs'] += 1 # take note of how many times this sub has been triggered
+        _cb(gql_msg) # execute callback function
+        self.subs[_id]['runs'] += 1 # take note of how many times this sub has been triggered   
+
       time.sleep(0.01)
     # ! subscription stopped, due to error or user event
     print(f'Subscription {_id} stopped')
@@ -425,11 +468,13 @@ class GraphQLClient(metaclass=Singleton):
     self.ws_url = env.get('wss')
     try:
       self._conn = websocket.create_connection(self.ws_url, subprotocols=[GQL_WS_SUBPROTOCOL])
+      self._conn_init()
       if self.websocket_timeout:
         self._conn.settimeout(self.websocket_timeout)
       return True
-    except:
+    except Exception as e:
       print(f'Failed connecting to {self.ws_url}')
+      print(f'original message: {e}')
       return False
 
   def close(self):
@@ -444,8 +489,10 @@ class GraphQLClient(metaclass=Singleton):
     for _, sub in self.subs.items():
       sub['unsub']()
     self.sub_router_thread.join()
+    self.sub_pingpong_thread.join()
     self._conn.close()
     self.sub_router_thread = None
+    self.sub_pingpong_thread = None
     self._conn = None
     self.sub_counter = 0
     self.subs = {}
@@ -464,12 +511,29 @@ class GraphQLClient(metaclass=Singleton):
       'payload': headers
     }
     self._conn.send(json.dumps(payload))
-    self._conn.recv()
+    self._conn.recv() #This has to be {"type":"connection_ack"}
     if not self.sub_router_thread:
       print('first subscription, starting routing loop')
       self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
       self.sub_router_thread.start()
-
+      self.sub_pingpong_thread = threading.Thread(target=self._ping_pong)
+      self.sub_pingpong_thread.start()
+      
+  def _ping_pong(self):
+    self.pingTimer = time.time()
+    while not self.closing:
+      time.sleep(0.1)
+      if self.wss_conn_halted:
+        continue
+      if ((time.time() - self.pingTimer) > self.pingIntervalTime):
+        self.pingTimer = time.time()
+        try:
+          self._conn.send(json.dumps({ 'type': 'ping' }))
+        except Exception as e:
+          print('error trying to send ping, WSS Pipe is broken')
+          print(f'original message: {e}')
+          self.wss_conn_halted = True
+      
   def _start(self, payload, _id=None):
     if not _id:
       self.sub_counter += 1
@@ -480,7 +544,7 @@ class GraphQLClient(metaclass=Singleton):
     return _id
 
   def _stop(self, _id):
-    payload = {'id': _id, 'type': 'stop'}
+    payload = {'id': _id, 'type': 'complete'}
     self._conn.send(json.dumps(payload))
 
   def resetSubsConnection(self):
