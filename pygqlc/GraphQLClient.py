@@ -386,7 +386,7 @@ class GraphQLClient(metaclass=Singleton):
           continue
         active_sub['queue'].append(message)
       elif message['type'] == 'connection_ack':
-        print('ConnectionAck with the server.')
+        print('Connection Ack with the server.')
         self.ack_received = True
         pass
       elif message['type'] == 'pong':
@@ -487,6 +487,7 @@ class GraphQLClient(metaclass=Singleton):
     self.closing = True
     if not self.sub_router_thread:
       print('connection not stablished, nothing to close')
+      self.closing = False
       return
     for _, sub in self.subs.items():
       sub['unsub']()
