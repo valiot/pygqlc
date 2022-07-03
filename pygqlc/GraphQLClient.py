@@ -154,6 +154,8 @@ class GraphQLClient(metaclass=Singleton):
     # * wss/subscription related attributes:
     self.ws_url = None
     self._conn = None
+    self.ack_received = False
+    self.ack_timeout = 5
     self._subscription_running = False
     self.subs = {} # * subscriptions running
     self.sub_counter = 0
@@ -348,8 +350,7 @@ class GraphQLClient(metaclass=Singleton):
         else:
           time.sleep(1.0)
           continue
-      starting = len(self.subs.items()) == 0
-      if starting or self.unsubscribing:
+      if self.unsubscribing:
         time.sleep(0.01)
         continue
       # this guy can handle unsubscriptions from another thread:
@@ -386,6 +387,7 @@ class GraphQLClient(metaclass=Singleton):
         active_sub['queue'].append(message)
       elif message['type'] == 'connection_ack':
         print('ConnectionAck with the server.')
+        self.ack_received = True
         pass
       elif message['type'] == 'pong':
         pass
@@ -510,15 +512,24 @@ class GraphQLClient(metaclass=Singleton):
       'type': 'connection_init',
       'payload': headers
     }
+    self.ack_received = False
     self._conn.send(json.dumps(payload))
-    self._conn.recv() #This has to be {"type":"connection_ack"}
     if not self.sub_router_thread:
       print('first subscription, starting routing loop')
       self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
       self.sub_router_thread.start()
       self.sub_pingpong_thread = threading.Thread(target=self._ping_pong)
       self.sub_pingpong_thread.start()
-      
+    self._waiting_connection_ack()
+
+  def _waiting_connection_ack(self):
+    st = time.time()
+    while (self.ack_timeout > (time.time() - st)):
+      if self.ack_received:
+        return
+      time.sleep(0.01)
+    raise Exception('Connection ack timeout')
+
   def _ping_pong(self):
     self.pingTimer = time.time()
     while not self.closing:
