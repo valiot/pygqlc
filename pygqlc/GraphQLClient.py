@@ -154,12 +154,12 @@ class GraphQLClient(metaclass=Singleton):
     # * wss/subscription related attributes:
     self.ws_url = None
     self._conn = None
-    self.ack_received = False
     self.ack_timeout = 5
     self._subscription_running = False
     self.subs = {} # * subscriptions running
     self.sub_counter = 0
     self.sub_router_thread = None
+    self.sub_pingpong_thread = None
     self.wss_conn_halted = False
     self.closing = False
     self.unsubscribing = False
@@ -339,6 +339,7 @@ class GraphQLClient(metaclass=Singleton):
     self.unsubscribing = False
   
   def _sub_routing_loop(self):
+    print('first subscription, starting routing loop')
     while not self.closing:
       if (self.wss_conn_halted):
         print('Connection halted, attempting reconnection...')
@@ -387,7 +388,6 @@ class GraphQLClient(metaclass=Singleton):
         active_sub['queue'].append(message)
       elif message['type'] == 'connection_ack':
         print('Connection Ack with the server.')
-        self.ack_received = True
         pass
       elif message['type'] == 'pong':
         pass
@@ -421,7 +421,7 @@ class GraphQLClient(metaclass=Singleton):
     while self.subs[_id]['running']:
       aborted = self.subs[_id]['kill']
       if aborted:
-        print(f'stopping subscription {_id} on Unsubscribe')
+        print(f'stopping subscription id={_id} on Unsubscribe')
         break
       message = safe_pop(self.subs[_id]['queue'])
       if not message:
@@ -433,10 +433,10 @@ class GraphQLClient(metaclass=Singleton):
         pass # continue with payload handling
       elif message['type'] == 'error':
         if _ecb: _ecb(message)
-        print(f'stopping subscription {_id} on {message["type"]}')
+        print(f'stopping subscription id={_id} on {message["type"]}')
         break
       elif message['type'] == 'complete':
-        print(f'stopping subscription {_id} on {message["type"]}')
+        print(f'stopping subscription id={_id} on {message["type"]}')
         break
       else:
         print(f'unknown msg type: {message}')
@@ -458,7 +458,7 @@ class GraphQLClient(metaclass=Singleton):
 
       time.sleep(0.01)
     # ! subscription stopped, due to error or user event
-    print(f'Subscription {_id} stopped')
+    print(f'Subscription id={_id} stopped')
     self.subs[_id].update({'running': False, 'kill': True})
   
   def _clean_sub_message(self, _id, message):
@@ -471,8 +471,6 @@ class GraphQLClient(metaclass=Singleton):
     try:
       self._conn = websocket.create_connection(self.ws_url, subprotocols=[GQL_WS_SUBPROTOCOL])
       self._conn_init()
-      if self.websocket_timeout:
-        self._conn.settimeout(self.websocket_timeout)
       return True
     except Exception as e:
       print(f'Failed connecting to {self.ws_url}')
@@ -513,23 +511,25 @@ class GraphQLClient(metaclass=Singleton):
       'type': 'connection_init',
       'payload': headers
     }
-    self.ack_received = False
     self._conn.send(json.dumps(payload))
-    if not self.sub_router_thread:
-      print('first subscription, starting routing loop')
-      self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
-      self.sub_router_thread.start()
-      self.sub_pingpong_thread = threading.Thread(target=self._ping_pong)
-      self.sub_pingpong_thread.start()
     self._waiting_connection_ack()
+    self._conn.settimeout(self.websocket_timeout)
+
+    if not self.sub_router_thread:
+      self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
+    if not self.sub_router_thread.is_alive():
+      self.sub_router_thread.start()
+    if not self.sub_pingpong_thread:
+      self.sub_pingpong_thread = threading.Thread(target=self._ping_pong)
+    if not self.sub_pingpong_thread.is_alive():
+      self.sub_pingpong_thread.start()
 
   def _waiting_connection_ack(self):
-    st = time.time()
-    while (self.ack_timeout > (time.time() - st)):
-      if self.ack_received:
-        return
-      time.sleep(0.01)
-    raise Exception('Connection ack timeout')
+    self._conn.settimeout(self.ack_timeout)
+    # set timeout to raise Exception websocket.WebSocketTimeoutException
+    message = json.loads(self._conn.recv()) 
+    if message['type'] == 'connection_ack':
+      print('Connection Ack with the server.')
 
   def _ping_pong(self):
     self.pingTimer = time.time()
@@ -569,15 +569,13 @@ class GraphQLClient(metaclass=Singleton):
       print('connection not stablished, nothing to reset')
       return False
     if self.sub_router_thread.isAlive(): #check that _sub_routing_loop() is running
-      self.wss_conn_halted = True
+      self._conn.close() # forces connection halted (wss_conn_halted)
       return True
     # in case for some reason _sub_routing_loop() is not running 
     if self._new_conn():
       print('WSS Reconnection succeeded, attempting resubscription to lost subs')
       self._resubscribe_all()
       print('finished resubscriptions')
-      self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
-      self.sub_router_thread.start() #start again _sub_routing_loop()
       return True
     else:
       print('Reconnection has not been possible')
