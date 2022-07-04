@@ -1,3 +1,7 @@
+## [3.0.0] - 2022-07-04
+### Changed
+- Upgrade GraphQL Subscriptions over WebSocket using `graphql-transport-ws` sub-protocol compatible with 627 (Breaking Change)
+
 ## [2.1.0] - 2022-02-04
 
 ### Added
