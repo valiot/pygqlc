@@ -302,10 +302,9 @@ class GraphQLClient(metaclass=Singleton):
         print('Error creating WSS connection for subscription')
         return None
 
-    payload = {'query': query, 'variables': variables}
     _cb = callback if callback is not None else self._on_message
     _ecb = on_error_callback
-    _id = self._start(payload, _id)
+    _id = self._registerSub(_id)
     self.subs[_id].update({
       'thread': threading.Thread(target=self._subscription_loop, args=(_cb, _id, _ecb)),
       'flatten': flatten,
@@ -351,7 +350,10 @@ class GraphQLClient(metaclass=Singleton):
         else:
           time.sleep(1.0)
           continue
-      if self.unsubscribing:
+      starting = False # Check if any subscription is starting
+      if any(self.subs[sub_id]['starting'] == True for sub_id in self.subs.keys()):
+        starting = True
+      if self.unsubscribing or starting:
         time.sleep(0.01)
         continue
       # this guy can handle unsubscriptions from another thread:
@@ -417,7 +419,9 @@ class GraphQLClient(metaclass=Singleton):
       )
   
   def _subscription_loop(self, _cb, _id, _ecb):
-    self.subs[_id].update({'running': True})
+    payload = {'query': self.subs[_id]['query'], 'variables': self.subs[_id]['variables']}
+    self._start(payload, _id)
+    self.subs[_id].update({'running': True, 'starting': False})
     while self.subs[_id]['running']:
       aborted = self.subs[_id]['kill']
       if aborted:
@@ -545,15 +549,17 @@ class GraphQLClient(metaclass=Singleton):
           print('error trying to send ping, WSS Pipe is broken')
           print(f'original message: {e}')
           self.wss_conn_halted = True
-      
-  def _start(self, payload, _id=None):
+
+  def _registerSub(self, _id=None):
     if not _id:
       self.sub_counter += 1
       _id = str(self.sub_counter)
-    self.subs.update({_id: {'running': False, 'kill': False}})
+    self.subs.update({_id: {'running': False, 'kill': False, 'starting': True}})
+    return _id
+      
+  def _start(self, payload, _id):
     frame = {'id': _id, 'type': 'subscribe', 'payload': payload}
     self._conn.send(json.dumps(frame))
-    return _id
 
   def _stop(self, _id):
     payload = {'id': _id, 'type': 'complete'}
