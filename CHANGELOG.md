@@ -1,3 +1,8 @@
+## [3.0.1] - 2022-07-31
+
+### Fix
+- Fixed race condition when a subscription is starting and _sub_routing_loop is running.
+
 ## [3.0.0] - 2022-07-04
 
 ### Changed

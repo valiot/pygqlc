@@ -316,6 +316,8 @@ class GraphQLClient(metaclass=Singleton):
       'on_error_callback': on_error_callback
     })
     self.subs[_id]['thread'].start()
+    payload = {'query': query, 'variables': variables}
+    self._start(payload, _id)
     # ! Create unsubscribe function for this specific thread:
     def unsubscribe():
       return self._unsubscribe(_id)
@@ -350,16 +352,14 @@ class GraphQLClient(metaclass=Singleton):
         else:
           time.sleep(1.0)
           continue
-      starting = False # Check if any subscription is starting
-      if any(self.subs[sub_id]['starting'] == True for sub_id in self.subs.keys()):
-        starting = True
-      if self.unsubscribing or starting:
+      if self.unsubscribing:
         time.sleep(0.01)
         continue
       # this guy can handle unsubscriptions from another thread:
       to_del = []
       for sub_id, sub in self.subs.items():
         if sub['kill'] or not sub['running']:
+          if sub['starting']: continue
           print(f'deleting halted subscription (id: {sub_id})')
           sub['thread'].join()
           to_del.append(sub_id)
@@ -419,8 +419,6 @@ class GraphQLClient(metaclass=Singleton):
       )
   
   def _subscription_loop(self, _cb, _id, _ecb):
-    payload = {'query': self.subs[_id]['query'], 'variables': self.subs[_id]['variables']}
-    self._start(payload, _id)
     self.subs[_id].update({'running': True, 'starting': False})
     while self.subs[_id]['running']:
       aborted = self.subs[_id]['kill']
