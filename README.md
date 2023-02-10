@@ -194,3 +194,7 @@ Use `gql.setPostTimeout(seconds)`, or directly in the environment `gql.addEnviro
 You can set a websocket timeout to keep subscriptions alive. 
 
 Use `gql.setTimeoutWebsocket(seconds)`, or directly in the environment `gql.addEnvironment(timeoutWebsocket=seconds)`. Default timeoutWebsocket is 60 seconds
+
+### for mantainers:
+deploy using:
+`python setup.py sdist bdist_wheel && python -m twine upload dist/* --skip-existing # UPLOAD TO PYPI`
