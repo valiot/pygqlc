@@ -37,7 +37,7 @@ setup(
     author="Valiot",
     author_email='hiring@valiot.io',
     url='https://github.com/valiot/pygqlc',
-    packages=find_packages(include=['pygqlc']),
+    packages=find_packages(exclude=["tests", "docs"]),
     entry_points={
         'console_scripts': [
             'pygqlc=pygqlc.__main__:main'
