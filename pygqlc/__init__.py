@@ -7,4 +7,4 @@ from .helper_modules.Singleton import Singleton
 # * Package name:
 name = 'pygqlc'
 # * required here for pypi upload exceptions:
-__version__ = "3.0.2"
+from .__version__ import __version__

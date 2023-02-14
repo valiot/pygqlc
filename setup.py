@@ -4,7 +4,20 @@
 """The setup script."""
 
 from setuptools import setup, find_packages
-from pygqlc import __version__
+
+# reference: https://stackoverflow.com/questions/458550/standard-way-to-embed-version-into-python-package#:~:text=should%20be%20placed%20after%20the,previous%20version%20of%20this%20standard).&text=It%20should%20be%20a%20string,version_info%20for%20the%20tuple%20version.
+def get_package_version(version_file):
+    import re
+    verstrline = open(version_file, "rt").read()
+    VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
+    mo = re.search(VSRE, verstrline, re.M)
+    if mo:
+        verstr = mo.group(1)
+        return verstr
+    else:
+        raise RuntimeError("Unable to find version string in %s." % (version_file,))
+
+__version__ = get_package_version("pygqlc/__version__.py")
 
 requirements = [
     # TODO: put package requirements here
