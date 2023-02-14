@@ -1,3 +1,8 @@
+## [3.0.3] - 2022-02-13
+
+### Fix
+- Fix minor bug on the `setup.py` to include all packages in pygqlc folder
+
 ## [3.0.1] - 2022-07-31
 
 ### Fix
