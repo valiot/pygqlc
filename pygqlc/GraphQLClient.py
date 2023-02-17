@@ -373,10 +373,11 @@ class GraphQLClient(metaclass=Singleton):
         self.wss_conn_halted = True
         continue
       except Exception as e:
-         print(f'Some error trying to receive WSS')
-         print(f'original message: {e}')
-         self.wss_conn_halted = True
-         continue
+        if not self.closing:
+          print(f'Some error trying to receive WSS')
+          print(f'original message: {e}')
+          self.wss_conn_halted = True
+        continue
 
       if 'id' in message.keys(): 
         # if the message has an ID request, it will be handled by the _subscription_loop
@@ -491,9 +492,9 @@ class GraphQLClient(metaclass=Singleton):
       return
     for _, sub in self.subs.items():
       sub['unsub']()
+    self._conn.close()
     self.sub_router_thread.join()
     self.sub_pingpong_thread.join()
-    self._conn.close()
     self.sub_router_thread = None
     self.sub_pingpong_thread = None
     self._conn = None
@@ -544,9 +545,10 @@ class GraphQLClient(metaclass=Singleton):
         try:
           self._conn.send(json.dumps({ 'type': 'ping' }))
         except Exception as e:
-          print('error trying to send ping, WSS Pipe is broken')
-          print(f'original message: {e}')
-          self.wss_conn_halted = True
+          if not self.closing:
+            print('error trying to send ping, WSS Pipe is broken')
+            print(f'original message: {e}')
+            self.wss_conn_halted = True
 
   def _registerSub(self, _id=None):
     if not _id:
