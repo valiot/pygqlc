@@ -1,3 +1,9 @@
+## [3.0.4] - 2023-02-17
+
+### Fix
+
+- Fix method to close subscriptions correctly 
+
 ## [3.0.3] - 2023-02-14
 
 ### Fix
