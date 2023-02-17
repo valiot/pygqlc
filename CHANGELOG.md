@@ -2,7 +2,7 @@
 
 ### Fix
 
-- Fix method to close subscriptions correctly 
+- Fix method to close subscriptions correctly
 
 ## [3.0.3] - 2023-02-14
 
