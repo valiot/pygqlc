@@ -1,3 +1,9 @@
+## [3.0.5] - 2023-02-22
+
+### Fix
+
+- align dependencies to other valiot packages (valiotWorker/gstorm)
+
 ## [3.0.4] - 2023-02-17
 
 ### Fix
