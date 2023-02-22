@@ -21,11 +21,10 @@ __version__ = get_package_version("pygqlc/__version__.py")
 
 requirements = [
     # TODO: put package requirements here
-    'requests==2.26.0',
-    'python-dotenv',
-    'pydash==5.0.2',
+    'requests>=2.26, <3.0',
+    'pydash>=5.0, <6.0',
     'websocket-client==0.54.0',
-    'tenacity==6.3.1',
+    'tenacity>=6.3, <7.0',
 ]
 
 setup_requirements = [
