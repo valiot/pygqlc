@@ -3,6 +3,7 @@ import json
 import time
 import threading
 import websocket
+import traceback
 import pydash as py_
 from pygqlc.helper_modules.Singleton import Singleton
 from tenacity import (
@@ -456,10 +457,13 @@ class GraphQLClient(metaclass=Singleton):
         print('Subscription successfully initialized')
       else:
         gql_msg = self._clean_sub_message(_id, message)
-        _cb(gql_msg) # execute callback function
+        try:
+          _cb(gql_msg) # execute callback function
+        except Exception as e:
+          print(f'Error on subscription callback: {e}\n{traceback.format_exc()}')
+          continue
         self.subs[_id]['runs'] += 1 # take note of how many times this sub has been triggered   
 
-      time.sleep(0.01)
     # ! subscription stopped, due to error or user event
     print(f'Subscription id={_id} stopped')
     self.subs[_id].update({'running': False, 'kill': True})
