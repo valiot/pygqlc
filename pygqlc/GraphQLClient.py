@@ -578,7 +578,7 @@ class GraphQLClient(metaclass=Singleton):
     if not self.sub_router_thread:
       print('connection not stablished, nothing to reset')
       return False
-    if self.sub_router_thread.isAlive(): #check that _sub_routing_loop() is running
+    if self.sub_router_thread.is_alive(): #check that _sub_routing_loop() is running
       self._conn.close() # forces connection halted (wss_conn_halted)
       return True
     # in case for some reason _sub_routing_loop() is not running 
