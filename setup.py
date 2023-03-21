@@ -15,16 +15,17 @@ def get_package_version(version_file):
         verstr = mo.group(1)
         return verstr
     else:
-        raise RuntimeError("Unable to find version string in %s." % (version_file,))
+        raise RuntimeError(
+            "Unable to find version string in %s." % (version_file,))
 
 __version__ = get_package_version("pygqlc/__version__.py")
 
 requirements = [
     # TODO: put package requirements here
     'requests>=2.26, <3.0',
-    'pydash>=5.0, <6.0',
-    'websocket-client==0.54.0',
-    'tenacity>=6.3, <7.0',
+    'pydash>=5.0, <7.0',
+    'websocket-client>=0.54, <=2.0',
+    'tenacity>=6.3, <9.0',
 ]
 
 setup_requirements = [
