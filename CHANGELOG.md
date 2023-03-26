@@ -1,3 +1,9 @@
+## [3.1.0] - 2023-03-27
+
+### Added
+
+- Execute subscription callback in a safe way (try/except)
+
 ## [3.0.5] - 2023-02-22
 
 ### Fix
