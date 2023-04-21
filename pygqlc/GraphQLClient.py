@@ -7,9 +7,9 @@ import traceback
 import pydash as py_
 from pygqlc.helper_modules.Singleton import Singleton
 from tenacity import (
-  retry, 
-  retry_if_result, 
-  stop_after_attempt, 
+  retry,
+  retry_if_result,
+  stop_after_attempt,
   wait_random
 )
 """
@@ -30,7 +30,7 @@ def is_ws_payloadErrors_msg(message):
   if (errors):
     return True
   return False
-  
+
 def is_ws_connection_init_msg(message):
   data = py_.get(message, 'payload.data', {})
   if not data:
@@ -105,7 +105,7 @@ def safe_pop(data, index=0, default=None):
 class GraphQLClient(metaclass=Singleton):
   """The GraphQLClient class follows the singleton design pattern. It can
   make a query, mutation or subscription from an api.
-  
+
   Attributes:
       environments (dict): Dictonary with all envieroments. Defaults to
         empty dict.
@@ -126,7 +126,7 @@ class GraphQLClient(metaclass=Singleton):
         canceled. Defaults to False.
       websocket_timeout (int): seconds of the websocket timeout. Defaults to
         60.
-  
+
   Examples:
       >>> <With> clause:
         '''
@@ -167,15 +167,15 @@ class GraphQLClient(metaclass=Singleton):
     self.websocket_timeout = 60
     self.pingIntervalTime = 15
     self.pingTimer = time.time()
-  
+
   # * with <Object> implementation
   def __enter__(self):
     return self
-  
+
   def __exit__(self, type, value, traceback):
     self.environment = self.save_env # restores environment
     return
-  
+
   def enterEnvironment(self, name):
     """This function makes a safe access to an environment.
 
@@ -188,7 +188,7 @@ class GraphQLClient(metaclass=Singleton):
     self.save_env = self.environment
     self.environment = name
     return self # * for use with "with" keyword
-  
+
   # * HIGH LEVEL METHODS ---------------------------------
   # TODO: Implement tenacity in query, mutation and subscription methods
   # @retry(
@@ -205,7 +205,7 @@ class GraphQLClient(metaclass=Singleton):
   #   except Exception as e:
   #     errors = [{'message': str(e)}]
   #   return data, errors
-  
+
   # * Query high level implementation
   def query(self, query, variables=None, flatten=True, single_child=False):
     """This function makes a query transaction to the actual environment.
@@ -249,7 +249,7 @@ class GraphQLClient(metaclass=Singleton):
         (GraphqlResponse): Returns the GraphqlResponse of the query.
     """
     return self.query(query, variables, flatten=True, single_child=True)
-  
+
   # * Mutation high level implementation
   def mutate(self, mutation, variables=None, flatten=True):
     """This function makes a mutation transaction to the actual environment.
@@ -324,7 +324,7 @@ class GraphQLClient(metaclass=Singleton):
       return self._unsubscribe(_id)
     self.subs[_id].update({'unsub': unsubscribe})
     return unsubscribe
-  
+
   def _unsubscribe(self, _id):
     if not self.subs.get(_id):
       print('Subscription already cleared')
@@ -339,7 +339,7 @@ class GraphQLClient(metaclass=Singleton):
     self.subs[_id]['thread'].join()
     self.subs[_id].update({'running': False})
     self.unsubscribing = False
-  
+
   def _sub_routing_loop(self):
     print('first subscription, starting routing loop')
     while not self.closing:
@@ -380,13 +380,13 @@ class GraphQLClient(metaclass=Singleton):
           self.wss_conn_halted = True
         continue
 
-      if 'id' in message.keys(): 
+      if 'id' in message.keys():
         # if the message has an ID request, it will be handled by the _subscription_loop
         _id = py_.get(message, 'id')
         active_sub = self.subs.get(_id)
         # the connection may not be active due to:
         # 1. server error (incorrect ID sent)
-        # 2. race condition (we closed connection, but a message was already on its way here) 
+        # 2. race condition (we closed connection, but a message was already on its way here)
         if (not active_sub):
           continue
         active_sub['queue'].append(message)
@@ -399,7 +399,7 @@ class GraphQLClient(metaclass=Singleton):
         print(f'unknown msg type: {message}')
 
       time.sleep(0.01)
-  
+
   def _resubscribe_all(self):
     # first, clear every subscription thread running:
     for sub_id in self.subs.keys():
@@ -419,7 +419,7 @@ class GraphQLClient(metaclass=Singleton):
         flatten=old_subs[sub_id]['flatten'],
         _id=sub_id,
       )
-  
+
   def _subscription_loop(self, _cb, _id, _ecb):
     self.subs[_id].update({'running': True, 'starting': False})
     while self.subs[_id]['running']:
@@ -460,14 +460,21 @@ class GraphQLClient(metaclass=Singleton):
         try:
           _cb(gql_msg) # execute callback function
         except Exception as e:
-          print(f'Error on subscription callback: {e}\n{traceback.format_exc()}')
+          print(f'Error on subscription callback: {e}')
+          sub_query = self.subs[_id].get('query')
+          sub_variables = self.subs[_id].get('variables')
+          if sub_query:
+            print(f'subscription document: \n\t{sub_query}')
+          if sub_variables:
+            print(f'subscription variables: \n\t{sub_variables}')
+          print(traceback.format_exc())
           continue
-        self.subs[_id]['runs'] += 1 # take note of how many times this sub has been triggered   
+        self.subs[_id]['runs'] += 1 # take note of how many times this sub has been triggered
 
     # ! subscription stopped, due to error or user event
     print(f'Subscription id={_id} stopped')
     self.subs[_id].update({'running': False, 'kill': True})
-  
+
   def _clean_sub_message(self, _id, message):
     data = py_.get(message, 'payload', {})
     return data_flatten(data) if self.subs[_id]['flatten'] else data
@@ -505,7 +512,7 @@ class GraphQLClient(metaclass=Singleton):
     self.sub_counter = 0
     self.subs = {}
     self.closing = False
-  
+
   def _on_message(self, message):
     '''Dummy callback for subscription'''
     print(f'message received on subscription:')
@@ -534,7 +541,7 @@ class GraphQLClient(metaclass=Singleton):
   def _waiting_connection_ack(self):
     self._conn.settimeout(self.ack_timeout)
     # set timeout to raise Exception websocket.WebSocketTimeoutException
-    message = json.loads(self._conn.recv()) 
+    message = json.loads(self._conn.recv())
     if message['type'] == 'connection_ack':
       print('Connection Ack with the server.')
 
@@ -560,7 +567,7 @@ class GraphQLClient(metaclass=Singleton):
       _id = str(self.sub_counter)
     self.subs.update({_id: {'running': False, 'kill': False, 'starting': True}})
     return _id
-      
+
   def _start(self, payload, _id):
     frame = {'id': _id, 'type': 'subscribe', 'payload': payload}
     self._conn.send(json.dumps(frame))
@@ -581,7 +588,7 @@ class GraphQLClient(metaclass=Singleton):
     if self.sub_router_thread.is_alive(): #check that _sub_routing_loop() is running
       self._conn.close() # forces connection halted (wss_conn_halted)
       return True
-    # in case for some reason _sub_routing_loop() is not running 
+    # in case for some reason _sub_routing_loop() is not running
     if self._new_conn():
       print('WSS Reconnection succeeded, attempting resubscription to lost subs')
       self._resubscribe_all()
@@ -604,7 +611,7 @@ class GraphQLClient(metaclass=Singleton):
         (MutationBatch): Returns a MutationBatch Object.
     """
     return MutationBatch(client=self, label=label)
-  
+
   def batchQuery(self, label='query'):
     """This fuction makes a batchs of query transactions.
 
@@ -631,7 +638,7 @@ class GraphQLClient(metaclass=Singleton):
          default one of the instance. Defaults to False.
         timeoutWebsocket (int, optional): Seconds of the timeout of the
          websocket. Defaults to 60.
-        post_timeout (int, optional): Timeout in seconds for each post. 
+        post_timeout (int, optional): Timeout in seconds for each post.
          Defaults to 60.
     """
     self.environments.update({
@@ -657,7 +664,7 @@ class GraphQLClient(metaclass=Singleton):
     if not environment:
       environment = self.environment
     self.environments[environment].update({'url': url})
-  
+
   def setWss(self, environment=None, url=None):
     """This function sets a new WSS to an existing environment.
 
@@ -669,7 +676,7 @@ class GraphQLClient(metaclass=Singleton):
     if not environment:
       environment = self.environment
     self.environments[environment].update({'wss': url})
-  
+
   def addHeader(self, environment=None, header={}):
     """This function updates the header of an existing environment.
 
@@ -709,7 +716,7 @@ class GraphQLClient(metaclass=Singleton):
       environment = self.environment
     self.environments[environment].update({'post_timeout': post_timeout})
 
-  
+
   def setTimeoutWebsocket(self, seconds):
     """This function sets the webscoket's timeout.
 
