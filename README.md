@@ -224,4 +224,9 @@ or:
 `poetry publish -r valiot`
 (if you already built the package)
 
+After release, publish to github:
+`cat pygqlc/__version__.py`
+`gh release create`
+`gh release upload v<#.#.#> ./dist/pygqlc-<#.#.#>-py3-none-any.whl`
+
 and don't forget to keep the `CHANGELOG.md` updated!
