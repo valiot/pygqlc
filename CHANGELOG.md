@@ -1,3 +1,9 @@
+## [3.1.2] - 2023-07-17
+
+### Changed
+
+- Remove `__version__` constant from package exports
+
 ## [3.1.0] - 2023-03-27
 
 ### Added
