@@ -6,3 +6,5 @@ from .helper_modules.Singleton import Singleton
 
 # * Package name:
 name = 'pygqlc'
+
+from .__version__ import __version__

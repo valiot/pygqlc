@@ -1,3 +1,9 @@
+## [3.1.3] - 2023-07-17
+
+### Changed
+
+- Add automatically generated `__version__` constant (from `poetry version <increment>`)
+
 ## [3.1.2] - 2023-07-17
 
 ### Changed
