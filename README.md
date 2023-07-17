@@ -1,13 +1,17 @@
 # pygqlc
+
 Python client for graphql APIs
 
 ### Scope
+
 This is an open source project, please feel free to fork it and PR to contribute with the community!
 Repo for the project: https://github.com/valiot/pygqlc
 
 ### Installation
+
 Requirements:
-- Python 3.6+
+
+- Python 3.9+
 - Pipenv
 
 Install directly from pypi:
@@ -21,12 +25,14 @@ $ python
 $ >> import pygqlc
 $ >> print(pygqlc.name)
 ```
+
 If you get "pygqlc" printed in the python repl, the installation succeded!
 
 ### Usage
+
 ```python
 import os
-from pygqlc import GraphQLClient 
+from pygqlc import GraphQLClient
 gql = GraphQLClient()
 gql.addEnvironment(
     'dev',
@@ -35,10 +41,13 @@ gql.addEnvironment(
     headers={'Authorization': os.environ.get('TOKEN')},
     default=True)
 ```
+
 #### From now on, you can access to the main API:
+
 `gql.query, gql.mutate, gql.subscribe`
 
 For queries:
+
 ```python
 query = '''
 query{
@@ -51,6 +60,7 @@ data, errors = gql.query( query )
 ```
 
 For mutations:
+
 ```python
 create_author = '''
 mutation {
@@ -97,6 +107,7 @@ After finishing all subscriptions, the method
 To reset all subscriptions and websocket connection use the method `GraphQLClient.resetSubsConnection()`.
 
 ### To be noted:
+
 All main methods from the API accept a `variables` param.
 it is a dictionary type and may include variables from your queries or mutations:
 
@@ -133,6 +144,7 @@ data, errors = gql.query(
 ```
 
 There is also an optional parameter `flatten` that simplifies the response format:
+
 ```python
 # From this:
 response = {
@@ -151,6 +163,7 @@ authors = [
   { 'name': 'Gerardo' }
 ]
 ```
+
 Simplifying the data access from this:
 
 `response['data']['authors'][0]['name']`
@@ -162,6 +175,7 @@ to this:
 It is `query(query, variables, flatten=True)` by default, to avoid writing it down everytime
 
 The `(_, errors)` part of the response, is the combination of GraphQL errors, and communication errors, simplifying validations, it has this form:
+
 ```python
 errors = [
   {"field": <value>, "message":<msg>},
@@ -170,7 +184,9 @@ errors = [
   ...
 ]
 ```
+
 The field Attribute it's only available for GraphQL errors, when it is included in the response, so it's suggested that every mutation has at least this parameters in the response:
+
 ```
 mutation{
   myMutation(<mutationParams>){
@@ -185,16 +201,27 @@ mutation{
   }
 }
 ```
+
 ### Post timeout:
-You can set a post timeout to avoid an inactive process. 
+
+You can set a post timeout to avoid an inactive process.
 
 Use `gql.setPostTimeout(seconds)`, or directly in the environment `gql.addEnvironment(post_timeout=seconds)`. Default port_timeout is 60 seconds
 
 ### Websocket timeout:
-You can set a websocket timeout to keep subscriptions alive. 
+
+You can set a websocket timeout to keep subscriptions alive.
 
 Use `gql.setTimeoutWebsocket(seconds)`, or directly in the environment `gql.addEnvironment(timeoutWebsocket=seconds)`. Default timeoutWebsocket is 60 seconds
 
 ### for mantainers:
+
 deploy using:
-`python setup.py sdist bdist_wheel && python -m twine upload dist/* --skip-existing # UPLOAD TO PYPI`
+`poetry version <patch | minor | major>`
+then:
+`poetry publish --build -r valiot # build and PUBLISH TO PRIVATE VALIOTs PYPI`
+or:
+`poetry publish -r valiot`
+(if you already built the package)
+
+and don't forget to keep the `CHANGELOG.md` updated!
