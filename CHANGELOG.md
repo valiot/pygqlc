@@ -1,3 +1,9 @@
+## [3.1.4] - 2023-08-16
+
+### Fixed
+
+- Bump `certifi` version to fix security vulnerability
+
 ## [3.1.3] - 2023-07-17
 
 ### Changed
