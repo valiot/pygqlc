@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: 3.12
           cache: "poetry"
-      - run: poetry install --with dev
+      - run: poetry install
       - name: Testing with pytest
         env: # Environment variables
           API: ${{ secrets.API }}
