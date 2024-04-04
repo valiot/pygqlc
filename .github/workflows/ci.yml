@@ -12,20 +12,17 @@ jobs:
 
     steps:
       # Validate every action
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v4
 
-      - name: Setting up Python 3.7 & env vars
-        uses: actions/setup-python@v1
+      - name: Setting up Python 3.12 & env vars
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.7
-
-      - name: Installing pipenv
-        uses: dschep/install-pipenv-action@v1
-      
-      - name: Installing dependencies
+          python-version: 3.12
+      - name: Install dependencies
         run: |
-          pipenv install --dev
-
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --with dev
       # Testing all test and stops if there is one error.
       - name: Testing with pytest
         env: # Environment variables
@@ -33,4 +30,4 @@ jobs:
           WSS: ${{ secrets.WSS }}
           TOKEN: ${{ secrets.TOKEN }}
         run: |
-          pipenv run pytest -x
+          poetry run pytest -x
