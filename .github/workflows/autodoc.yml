@@ -4,7 +4,7 @@ name: Build auto documentation
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   auto-doc:
@@ -20,12 +20,12 @@ jobs:
         with:
           python-version: 3.7
 
-    # Building autodocumentation
-      - name: Building auto documentation 
+      # Building autodocumentation
+      - name: Building auto documentation
         uses: ammaraskar/sphinx-action@master
-        with: 
+        with:
           docs-folder: "docs/"
-      
+
       - name: Commit changes
         run: |
           git config --global user.email "valbot@valiot.io"
@@ -35,11 +35,11 @@ jobs:
           git add --all
           git reset -- .gitignore
           git commit -m "Update documentation"
-          
+
       - name: Push Changes
         uses: ad-m/github-push-action@master
         with:
           branch: Documentation
           directory: docs
-          force: true 
+          force: true
           github_token: ${{ secrets.GITHUB_TOKEN }}

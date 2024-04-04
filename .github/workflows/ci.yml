@@ -9,28 +9,20 @@ jobs:
   tests:
     # OS to run
     runs-on: ubuntu-latest
-
     steps:
-      # Validate every action
-      - uses: actions/checkout@v1
-
-      - name: Setting up Python 3.7 & env vars
-        uses: actions/setup-python@v1
+      - uses: actions/checkout@v4
+      - name: Install poetry
+        run: pipx install poetry
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.7
-
-      - name: Installing pipenv
-        uses: dschep/install-pipenv-action@v1
-      
-      - name: Installing dependencies
-        run: |
-          pipenv install --dev
-
-      # Testing all test and stops if there is one error.
+          python-version: 3.12
+          cache: "poetry"
+      - run: poetry install
       - name: Testing with pytest
         env: # Environment variables
           API: ${{ secrets.API }}
           WSS: ${{ secrets.WSS }}
           TOKEN: ${{ secrets.TOKEN }}
         run: |
-          pipenv run pytest -x
+          poetry run pytest
