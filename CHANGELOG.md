@@ -1,3 +1,9 @@
+## [3.2.0] - 2024-04-04
+
+### Changed
+
+- Update dependencies, mainly websockets to ^1.0
+
 ## [3.1.4] - 2023-08-16
 
 ### Fixed
