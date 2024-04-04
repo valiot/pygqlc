@@ -8,14 +8,13 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.9"
 requests = "~=2.26"
-pydash = "~=5.0"
-tenacity = "~=6.3"
-websocket-client = "==0.54.0"
-certifi = "^2023.07.22"
+pydash = "~=7.0"
+tenacity = "~=8.0"
+websocket-client = "^1.0"
+certifi = "^2024"
 
 
 [tool.poetry.group.dev.dependencies]
-pipenv-poetry-migrate = "^0.3.2"
 pytest = "*"
 pylint = "*"
 autopep8 = "*"
