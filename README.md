@@ -38,7 +38,7 @@ gql.addEnvironment(
     'dev',
     url=os.environ.get('API'), # should be an https url
     wss=os.environ.get('WSS'), # should be an ws/wss url
-    headers={'Authorization': os.environ.get('TOKEN')},
+    headers={'Authorization': f"Bearer {os.environ.get('TOKEN')}"},
     default=True)
 ```
 
