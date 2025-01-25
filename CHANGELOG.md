@@ -1,3 +1,10 @@
+# CHANGELOG
+
+## [3.3.0] - 2025-01-25
+
+- [Added] GitHub Workflow to check for outdated packages on push
+- [Changed] Update dependencies
+
 ## [3.2.0] - 2024-04-04
 
 ### Changed
