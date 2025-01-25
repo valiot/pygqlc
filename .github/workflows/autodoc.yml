@@ -13,12 +13,12 @@ jobs:
 
     steps:
       # Validate every action
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v4
 
-      - name: Setting up Python 3.7 & env vars
-        uses: actions/setup-python@v2
+      - name: Setting up Python 3.12 & env vars
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.7
+          python-version: 3.12
 
       # Building autodocumentation
       - name: Building auto documentation
