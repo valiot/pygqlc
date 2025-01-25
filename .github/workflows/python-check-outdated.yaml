@@ -1,0 +1,36 @@
+name: Check Outdated Python Dependencies
+on: push
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: 3.12
+
+jobs:
+  check_outdated:
+    runs-on: ubuntu
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Poetry
+        run: pip install poetry
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "poetry"
+      - name: Check Outdated Dependencies
+        run: |
+          # Save the output of `poetry show --outdated --top-level` to a variable
+          OUTDATED=$(poetry show --outdated --top-level)
+
+          # Check if any outdated packages are found
+          if [ -n "$OUTDATED" ]; then
+            echo "Outdated packages found:"
+            echo "$OUTDATED"
+            exit 1
+          else
+            echo "All packages are up-to-date."
+          fi
