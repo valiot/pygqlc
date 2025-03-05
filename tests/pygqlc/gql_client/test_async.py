@@ -1,4 +1,3 @@
-import asyncio
 import pytest
 from . import queries
 
