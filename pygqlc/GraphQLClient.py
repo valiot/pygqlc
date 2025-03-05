@@ -625,7 +625,7 @@ class GraphQLClient(metaclass=Singleton):
 
   # * END BATCH function **************************************
   # * helper methods
-  def addEnvironment(self, name, url=None, wss=None, headers={}, default=False, timeoutWebsocket=60, post_timeout=60):
+  def addEnvironment(self, name, url=None, wss=None, headers={}, default=False, timeoutWebsocket=60, post_timeout=60, ipv4_only=False):
     """This fuction adds a new environment to the instance.
 
     Args:
@@ -640,13 +640,16 @@ class GraphQLClient(metaclass=Singleton):
          websocket. Defaults to 60.
         post_timeout (int, optional): Timeout in seconds for each post.
          Defaults to 60.
+        ipv4_only (bool, optional): Forces connections to use IPv4 only.
+         Helps with slow connections on networks with problematic IPv6. Defaults to False.
     """
     self.environments.update({
       name: {
         'url': url,
         'wss': wss,
         'headers': headers,
-        'post_timeout': post_timeout
+        'post_timeout': post_timeout,
+        'ipv4_only': ipv4_only
       }
     })
     if default:
@@ -779,11 +782,18 @@ class GraphQLClient(metaclass=Singleton):
       }
     env_headers = env.get('headers', None)
     post_timeout = env.get('post_timeout', '60')
+    ipv4_only = env.get('ipv4_only', False)
     if env_headers:
       headers.update(env_headers)
 
     # Use httpx with HTTP/2 support
-    with httpx.Client(http2=True) as client:
+    client_kwargs = {"http2": True}
+
+    # Force IPv4 only if specified
+    if ipv4_only:
+      client_kwargs["transport"] = httpx.HTTPTransport(local_address="0.0.0.0")
+
+    with httpx.Client(**client_kwargs) as client:
       response = client.post(
         env['url'],
         json=data,
@@ -831,11 +841,18 @@ class GraphQLClient(metaclass=Singleton):
       }
     env_headers = env.get('headers', None)
     post_timeout = env.get('post_timeout', '60')
+    ipv4_only = env.get('ipv4_only', False)
     if env_headers:
       headers.update(env_headers)
 
     # Use httpx with HTTP/2 support
-    async with httpx.AsyncClient(http2=True) as client:
+    client_kwargs = {"http2": True}
+
+    # Force IPv4 only if specified
+    if ipv4_only:
+      client_kwargs["transport"] = httpx.AsyncHTTPTransport(local_address="0.0.0.0")
+
+    async with httpx.AsyncClient(**client_kwargs) as client:
       response = await client.post(
         env['url'],
         json=data,

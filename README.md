@@ -39,6 +39,7 @@ gql.addEnvironment(
     url=os.environ.get('API'), # should be an https url
     wss=os.environ.get('WSS'), # should be an ws/wss url
     headers={'Authorization': f"Bearer {os.environ.get('TOKEN')}"},
+    ipv4_only=False,  # Set to True to force IPv4 connections (useful for environments with problematic IPv6)
     default=True)
 ```
 
@@ -106,7 +107,7 @@ After finishing all subscriptions, the method
 
 To reset all subscriptions and websocket connection use the method `GraphQLClient.resetSubsConnection()`.
 
-### To be noted:
+To be noted:
 
 All main methods from the API accept a `variables` param.
 it is a dictionary type and may include variables from your queries or mutations:
@@ -213,6 +214,20 @@ Use `gql.setPostTimeout(seconds)`, or directly in the environment `gql.addEnviro
 You can set a websocket timeout to keep subscriptions alive.
 
 Use `gql.setTimeoutWebsocket(seconds)`, or directly in the environment `gql.addEnvironment(timeoutWebsocket=seconds)`. Default timeoutWebsocket is 60 seconds
+
+### IPv4 Only Connections
+
+In some network environments, particularly on Linux systems, IPv6 connectivity issues can cause slow requests. To force the client to use IPv4 connections only, you can set the `ipv4_only` parameter when adding an environment:
+
+```python
+gql.addEnvironment(
+    'dev',
+    url="https://api.example.com/graphql",
+    ipv4_only=True  # Force IPv4 connections
+)
+```
+
+This can resolve connectivity issues in networks with suboptimal IPv6 configurations.
 
 ### for mantainers:
 

@@ -4,6 +4,7 @@
 
 - [Added] Async versions of the main API methods: `async_execute`, `async_query`, `async_query_one`, and `async_mutate`
 - [Added] Tests for the async methods
+- [Added] `ipv4_only` option to force IPv4 connections for environments with problematic IPv6 configurations
 - [Changed] Replaced the requests library with httpx (with HTTP/2 support) for better performance
 
 ## [3.3.0] - 2025-01-25
