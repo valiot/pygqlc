@@ -207,19 +207,19 @@ class GraphQLClient(metaclass=Singleton):
   #   return data, errors
 
   # * Query high level implementation
-  def query(self, query, variables=None, flatten=True, single_child=False):
+  def query(self, query: str, variables: dict = None, flatten: bool = True, single_child: bool = False) -> tuple:
     """This function makes a query transaction to the actual environment.
 
     Args:
-        query (string): Graphql query instructions.
+        query (string): GraphQL query instructions.
         variables (string, optional): Query variables. Defaults to None.
-        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+        flatten (bool, optional): Check if GraphQLResponse should be flatten or
          not. Defaults to True.
-        single_child (bool, optional): Check if GraphqlResponse only has one
+        single_child (bool, optional): Check if GraphQLResponse only has one
          element. Defaults to False.
 
     Returns:
-        (GraphqlResponse): Returns the GraphqlResponse of the query.
+        tuple: Tuple containing (data, errors) from the GraphQL response.
     """
     data = None
     errors = []
@@ -237,31 +237,31 @@ class GraphQLClient(metaclass=Singleton):
     return data, errors
 
   # * Query high level implementation
-  def query_one(self, query, variables=None):
+  def query_one(self, query: str, variables: dict = None) -> tuple:
     """This function makes a single child query.
 
     Args:
-        query (string): Graphql query instructions.
+        query (string): GraphQL query instructions.
         variables (string, optional): Query variables. Defaults to None.
 
 
     Returns:
-        (GraphqlResponse): Returns the GraphqlResponse of the query.
+        tuple: Tuple containing (data, errors) from the GraphQL response.
     """
     return self.query(query, variables, flatten=True, single_child=True)
 
   # * Mutation high level implementation
-  def mutate(self, mutation, variables=None, flatten=True):
+  def mutate(self, mutation: str, variables: dict = None, flatten: bool = True) -> tuple:
     """This function makes a mutation transaction to the actual environment.
 
     Args:
-        mutation (string): Graphql mutation instructions.
+        mutation (string): GraphQL mutation instructions.
         variables (string, optional): Mutation variables. Defaults to None.
-        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+        flatten (bool, optional): Check if GraphQLResponse should be flatten or
          not. Defaults to True.
 
     Returns:
-        (GraphqlResponse): Returns the GraphqlResponse of the mutation.
+        tuple: Tuple containing (data, errors) from the GraphQL response.
     """
     response = {}
     data = None
@@ -727,21 +727,44 @@ class GraphQLClient(metaclass=Singleton):
     if self._conn:
       self._conn.settimeout(self.websocket_timeout)
 
+  # * Custom Exception class for GraphQL responses
+  class GQLResponseException(Exception):
+    """Custom GraphQL exception for query/mutation execution errors.
+
+    Attributes:
+        status_code (int): HTTP status code of the response
+        query (str): GraphQL query or mutation that caused the error
+        variables (dict): Variables used in the query/mutation
+    """
+    def __init__(
+        self,
+        message: str,
+        status_code: int,
+        query: str,
+        variables: dict = None,
+    ) -> None:
+        # Initialize the normal exception with the message
+        super().__init__(message)
+        # Init the other parameters
+        self.status_code = status_code
+        self.query = query
+        self.variables = variables
+
   # * LOW LEVEL METHODS ----------------------------------
-  def execute(self, query, variables=None):
+  def execute(self, query: str, variables: dict = None) -> dict:
     """This function executes the intructions of a query or mutation.
 
     Args:
-        query (string): Graphql instructions.
+        query (string): GraphQL instructions.
         variables (string, optional): Variables of the transaction. Defaults
          to None.
 
     Raises:
         Exception: There is not setted a main environment.
-        Exception: Transactions format error.
+        GQLResponseException: Raised when the GraphQL query fails.
 
     Returns:
-        [JSON]: Raw GraphqlResponse.
+        dict: Raw GraphQLResponse.
     """
     data = {
       'query': query,
@@ -771,25 +794,29 @@ class GraphQLClient(metaclass=Singleton):
     if response.status_code == 200:
       return response.json()
     else:
-      raise Exception(
-        "Query failed to run by returning code of {}.\n{}".format(
-          response.status_code, query))
+      error_message = f"Query failed to run by returning code of {response.status_code}.\n{query}"
+      raise self.GQLResponseException(
+        message=error_message,
+        status_code=response.status_code,
+        query=query,
+        variables=variables
+      )
 
   # * ASYNC METHODS ----------------------------------
-  async def async_execute(self, query, variables=None):
+  async def async_execute(self, query: str, variables: dict = None) -> dict:
     """Async version of execute method that executes instructions of a query or mutation.
 
     Args:
-        query (string): Graphql instructions.
+        query (string): GraphQL instructions.
         variables (string, optional): Variables of the transaction. Defaults
          to None.
 
     Raises:
         Exception: There is not setted a main environment.
-        Exception: Transactions format error.
+        GQLResponseException: Raised when the GraphQL query fails.
 
     Returns:
-        [JSON]: Raw GraphqlResponse.
+        dict: Raw GraphQLResponse.
     """
     data = {
       'query': query,
@@ -819,23 +846,27 @@ class GraphQLClient(metaclass=Singleton):
     if response.status_code == 200:
       return response.json()
     else:
-      raise Exception(
-        "Query failed to run by returning code of {}.\n{}".format(
-          response.status_code, query))
+      error_message = f"Query failed to run by returning code of {response.status_code}.\n{query}"
+      raise self.GQLResponseException(
+        message=error_message,
+        status_code=response.status_code,
+        query=query,
+        variables=variables
+      )
 
-  async def async_query(self, query, variables=None, flatten=True, single_child=False):
+  async def async_query(self, query: str, variables: dict = None, flatten: bool = True, single_child: bool = False) -> tuple:
     """Async version of query method that makes a query transaction to the actual environment.
 
     Args:
-        query (string): Graphql query instructions.
+        query (string): GraphQL query instructions.
         variables (string, optional): Query variables. Defaults to None.
-        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+        flatten (bool, optional): Check if GraphQLResponse should be flatten or
          not. Defaults to True.
-        single_child (bool, optional): Check if GraphqlResponse only has one
+        single_child (bool, optional): Check if GraphQLResponse only has one
          element. Defaults to False.
 
     Returns:
-        (GraphqlResponse): Returns the GraphqlResponse of the query.
+        tuple: Tuple containing (data, errors) from the GraphQL response.
     """
     data = None
     errors = []
@@ -852,30 +883,29 @@ class GraphQLClient(metaclass=Singleton):
       errors = [{'message': str(e)}]
     return data, errors
 
-  async def async_query_one(self, query, variables=None):
+  async def async_query_one(self, query: str, variables: dict = None) -> tuple:
     """Async version of query_one method that makes a single child query.
 
     Args:
-        query (string): Graphql query instructions.
+        query (string): GraphQL query instructions.
         variables (string, optional): Query variables. Defaults to None.
 
-
     Returns:
-        (GraphqlResponse): Returns the GraphqlResponse of the query.
+        tuple: Tuple containing (data, errors) from the GraphQL response.
     """
     return await self.async_query(query, variables, flatten=True, single_child=True)
 
-  async def async_mutate(self, mutation, variables=None, flatten=True):
+  async def async_mutate(self, mutation: str, variables: dict = None, flatten: bool = True) -> tuple:
     """Async version of mutate method that makes a mutation transaction to the actual environment.
 
     Args:
-        mutation (string): Graphql mutation instructions.
+        mutation (string): GraphQL mutation instructions.
         variables (string, optional): Mutation variables. Defaults to None.
-        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+        flatten (bool, optional): Check if GraphQLResponse should be flatten or
          not. Defaults to True.
 
     Returns:
-        (GraphqlResponse): Returns the GraphqlResponse of the mutation.
+        tuple: Tuple containing (data, errors) from the GraphQL response.
     """
     response = {}
     data = None
