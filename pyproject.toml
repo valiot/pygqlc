@@ -10,13 +10,13 @@ python = "^3.10"
 pydash = "^8.0"
 tenacity = "^9.0"
 websocket-client = "^1.8"
-certifi = "^2024.12.14"
+certifi = "^2025.1.31"
 httpx = { extras = ["http2"], version = "^0.28.1" }
 
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3"
-pytest-asyncio = "^0.24.0"
+pytest-asyncio = "^0.25.0"
 pylint = "^3.3"
 autopep8 = "^2.3"
 setuptools = "^75.8"
