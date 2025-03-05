@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [Unreleased]
+## [3.4.0] - 2025-03-05
 
 ### Added
 - Added async versions of the main API methods: `async_execute`, `async_query`, `async_query_one`, and `async_mutate`
