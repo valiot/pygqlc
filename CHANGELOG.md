@@ -2,12 +2,9 @@
 
 ## [3.4.0] - 2025-03-05
 
-### Added
-- Added async versions of the main API methods: `async_execute`, `async_query`, `async_query_one`, and `async_mutate`
-- Added tests for the async methods
-
-### Changed
-- Replaced the requests library with httpx (with HTTP/2 support) for better performance
+- [Added] Async versions of the main API methods: `async_execute`, `async_query`, `async_query_one`, and `async_mutate`
+- [Added] Tests for the async methods
+- [Changed] Replaced the requests library with httpx (with HTTP/2 support) for better performance
 
 ## [3.3.0] - 2025-01-25
 
