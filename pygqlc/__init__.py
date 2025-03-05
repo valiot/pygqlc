@@ -1,4 +1,4 @@
-from .GraphQLClient import GraphQLClient
+from .GraphQLClient import GraphQLClient, GQLResponseException
 from .QueryParser import QueryParser
 from .MutationParser import MutationParser
 from .SubscriptionParser import SubscriptionParser

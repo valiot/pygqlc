@@ -99,6 +99,24 @@ unsub()
 gql.close()
 ```
 
+#### Exception Handling
+
+You can directly import the `GQLResponseException` for better error handling:
+
+```python
+from pygqlc import GraphQLClient, GQLResponseException
+
+gql = GraphQLClient()
+# ... configure client ...
+
+try:
+    data, errors = gql.query('{ invalidQuery }')
+    # Process data if no errors
+except GQLResponseException as e:
+    print(f"GraphQL error: {e.message}, Status: {e.status_code}")
+    # Handle the exception appropriately
+```
+
 The subscribe method, returns an `unsubscribe` function,
 this allows to stop subscriptions whenever needed.
 
