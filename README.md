@@ -39,6 +39,7 @@ gql.addEnvironment(
     url=os.environ.get('API'), # should be an https url
     wss=os.environ.get('WSS'), # should be an ws/wss url
     headers={'Authorization': f"Bearer {os.environ.get('TOKEN')}"},
+    ipv4_only=False,  # Set to True to force IPv4 connections (useful for environments with problematic IPv6)
     default=True)
 ```
 
@@ -98,6 +99,24 @@ unsub()
 gql.close()
 ```
 
+#### Exception Handling
+
+You can directly import the `GQLResponseException` for better error handling:
+
+```python
+from pygqlc import GraphQLClient, GQLResponseException
+
+gql = GraphQLClient()
+# ... configure client ...
+
+try:
+    data, errors = gql.query('{ invalidQuery }')
+    # Process data if no errors
+except GQLResponseException as e:
+    print(f"GraphQL error: {e.message}, Status: {e.status_code}")
+    # Handle the exception appropriately
+```
+
 The subscribe method, returns an `unsubscribe` function,
 this allows to stop subscriptions whenever needed.
 
@@ -106,7 +125,7 @@ After finishing all subscriptions, the method
 
 To reset all subscriptions and websocket connection use the method `GraphQLClient.resetSubsConnection()`.
 
-### To be noted:
+To be noted:
 
 All main methods from the API accept a `variables` param.
 it is a dictionary type and may include variables from your queries or mutations:
@@ -214,6 +233,20 @@ You can set a websocket timeout to keep subscriptions alive.
 
 Use `gql.setTimeoutWebsocket(seconds)`, or directly in the environment `gql.addEnvironment(timeoutWebsocket=seconds)`. Default timeoutWebsocket is 60 seconds
 
+### IPv4 Only Connections
+
+In some network environments, particularly on Linux systems, IPv6 connectivity issues can cause slow requests. To force the client to use IPv4 connections only, you can set the `ipv4_only` parameter when adding an environment:
+
+```python
+gql.addEnvironment(
+    'dev',
+    url="https://api.example.com/graphql",
+    ipv4_only=True  # Force IPv4 connections
+)
+```
+
+This can resolve connectivity issues in networks with suboptimal IPv6 configurations.
+
 ### for mantainers:
 
 #### Initial configuration
@@ -266,3 +299,55 @@ After release, publish to github:
 `gh release upload v<#.#.#> ./dist/pygqlc-<#.#.#>-py3-none-any.whl`
 
 and don't forget to keep the `CHANGELOG.md` updated!
+
+## Async Usage
+
+Python 3.10+ supports async/await syntax for asynchronous programming. The GraphQLClient class provides async versions of the main methods:
+
+```python
+import asyncio
+from pygqlc import GraphQLClient
+
+async def main():
+    client = GraphQLClient()
+    client.addEnvironment('dev', "https://api.example.com/graphql")
+
+    # Async query
+    data, errors = await client.async_query('''
+        query {
+            users {
+                id
+                name
+            }
+        }
+    ''')
+
+    if not errors:
+        print("Users:", data)
+
+    # Async mutation
+    data, errors = await client.async_mutate('''
+        mutation {
+            createUser(input: {name: "John Doe"}) {
+                user {
+                    id
+                    name
+                }
+            }
+        }
+    ''')
+
+    if not errors:
+        print("Created user:", data)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+The async methods are:
+- `async_execute`: Low-level method to execute GraphQL operations
+- `async_query`: For GraphQL queries
+- `async_query_one`: For queries that return a single item
+- `async_mutate`: For GraphQL mutations
+
+These methods can be used with `await` in async functions and provide the same functionality as their synchronous counterparts, but with the benefits of asynchronous execution.
