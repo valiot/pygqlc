@@ -25,6 +25,30 @@ from .MutationBatch import MutationBatch
 
 GQL_WS_SUBPROTOCOL = "graphql-transport-ws"
 
+# * Custom Exception class for GraphQL responses
+class GQLResponseException(Exception):
+  """Custom GraphQL exception for query/mutation execution errors.
+
+  Attributes:
+      status_code (int): HTTP status code of the response
+      query (str): GraphQL query or mutation that caused the error
+      variables (dict): Variables used in the query/mutation
+  """
+  def __init__(
+      self,
+      message: str,
+      status_code: int,
+      query: str,
+      variables: dict = None,
+  ) -> None:
+      # Initialize the normal exception with the message
+      super().__init__(message)
+      self.message = message
+      self.status_code = status_code
+      self.query = query
+      self.variables = variables
+
+
 def is_ws_payloadErrors_msg(message):
   errors = py_.get(message, 'payload.errors')
   if (errors):
@@ -730,29 +754,6 @@ class GraphQLClient(metaclass=Singleton):
     if self._conn:
       self._conn.settimeout(self.websocket_timeout)
 
-  # * Custom Exception class for GraphQL responses
-  class GQLResponseException(Exception):
-    """Custom GraphQL exception for query/mutation execution errors.
-
-    Attributes:
-        status_code (int): HTTP status code of the response
-        query (str): GraphQL query or mutation that caused the error
-        variables (dict): Variables used in the query/mutation
-    """
-    def __init__(
-        self,
-        message: str,
-        status_code: int,
-        query: str,
-        variables: dict = None,
-    ) -> None:
-        # Initialize the normal exception with the message
-        super().__init__(message)
-        # Init the other parameters
-        self.status_code = status_code
-        self.query = query
-        self.variables = variables
-
   # * LOW LEVEL METHODS ----------------------------------
   def execute(self, query: str, variables: dict = None) -> dict:
     """This function executes the intructions of a query or mutation.
@@ -805,7 +806,7 @@ class GraphQLClient(metaclass=Singleton):
       return response.json()
     else:
       error_message = f"Query failed to run by returning code of {response.status_code}.\n{query}"
-      raise self.GQLResponseException(
+      raise GQLResponseException(
         message=error_message,
         status_code=response.status_code,
         query=query,
@@ -864,7 +865,7 @@ class GraphQLClient(metaclass=Singleton):
       return response.json()
     else:
       error_message = f"Query failed to run by returning code of {response.status_code}.\n{query}"
-      raise self.GQLResponseException(
+      raise GQLResponseException(
         message=error_message,
         status_code=response.status_code,
         query=query,
