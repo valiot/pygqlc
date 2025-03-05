@@ -1,4 +1,3 @@
-import requests
 import json
 import time
 import threading
@@ -12,6 +11,7 @@ from tenacity import (
   stop_after_attempt,
   wait_random
 )
+import httpx
 """
 This module has the general purpose of defining the GraphQLClient class
 and all its methods.
@@ -758,10 +758,138 @@ class GraphQLClient(metaclass=Singleton):
     post_timeout = env.get('post_timeout', '60')
     if env_headers:
       headers.update(env_headers)
-    response = requests.post(env['url'], json=data, headers=headers, timeout=int(post_timeout))
+
+    # Use httpx with HTTP/2 support
+    with httpx.Client(http2=True) as client:
+      response = client.post(
+        env['url'],
+        json=data,
+        headers=headers,
+        timeout=float(post_timeout)
+      )
+
     if response.status_code == 200:
       return response.json()
     else:
       raise Exception(
         "Query failed to run by returning code of {}.\n{}".format(
           response.status_code, query))
+
+  # * ASYNC METHODS ----------------------------------
+  async def async_execute(self, query, variables=None):
+    """Async version of execute method that executes instructions of a query or mutation.
+
+    Args:
+        query (string): Graphql instructions.
+        variables (string, optional): Variables of the transaction. Defaults
+         to None.
+
+    Raises:
+        Exception: There is not setted a main environment.
+        Exception: Transactions format error.
+
+    Returns:
+        [JSON]: Raw GraphqlResponse.
+    """
+    data = {
+      'query': query,
+      'variables': variables
+    }
+    env = self.environments.get(self.environment, None)
+    if not env:
+      raise Exception(f'cannot execute query without setting an environment')
+    headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+      }
+    env_headers = env.get('headers', None)
+    post_timeout = env.get('post_timeout', '60')
+    if env_headers:
+      headers.update(env_headers)
+
+    # Use httpx with HTTP/2 support
+    async with httpx.AsyncClient(http2=True) as client:
+      response = await client.post(
+        env['url'],
+        json=data,
+        headers=headers,
+        timeout=float(post_timeout)
+      )
+
+    if response.status_code == 200:
+      return response.json()
+    else:
+      raise Exception(
+        "Query failed to run by returning code of {}.\n{}".format(
+          response.status_code, query))
+
+  async def async_query(self, query, variables=None, flatten=True, single_child=False):
+    """Async version of query method that makes a query transaction to the actual environment.
+
+    Args:
+        query (string): Graphql query instructions.
+        variables (string, optional): Query variables. Defaults to None.
+        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+         not. Defaults to True.
+        single_child (bool, optional): Check if GraphqlResponse only has one
+         element. Defaults to False.
+
+    Returns:
+        (GraphqlResponse): Returns the GraphqlResponse of the query.
+    """
+    data = None
+    errors = []
+    try:
+      response = await self.async_execute(query, variables)
+      if flatten:
+        data = response.get('data', None)
+      else:
+        data = response
+      errors = response.get('errors', [])
+      if flatten:
+        data = data_flatten(data, single_child=single_child)
+    except Exception as e:
+      errors = [{'message': str(e)}]
+    return data, errors
+
+  async def async_query_one(self, query, variables=None):
+    """Async version of query_one method that makes a single child query.
+
+    Args:
+        query (string): Graphql query instructions.
+        variables (string, optional): Query variables. Defaults to None.
+
+
+    Returns:
+        (GraphqlResponse): Returns the GraphqlResponse of the query.
+    """
+    return await self.async_query(query, variables, flatten=True, single_child=True)
+
+  async def async_mutate(self, mutation, variables=None, flatten=True):
+    """Async version of mutate method that makes a mutation transaction to the actual environment.
+
+    Args:
+        mutation (string): Graphql mutation instructions.
+        variables (string, optional): Mutation variables. Defaults to None.
+        flatten (bool, optional): Check if GraphqlResponse should be flatten or
+         not. Defaults to True.
+
+    Returns:
+        (GraphqlResponse): Returns the GraphqlResponse of the mutation.
+    """
+    response = {}
+    data = None
+    errors = []
+    try:
+      response = await self.async_execute(mutation, variables)
+    except Exception as e:
+      errors = [{'message': str(e)}]
+    finally:
+      errors.extend(response.get('errors', []))
+      if(not errors):
+        data = response.get('data', None)
+      if flatten:
+        data = data_flatten(data)
+        if (data):
+          errors.extend(data.get('messages', []))
+    return data, errors

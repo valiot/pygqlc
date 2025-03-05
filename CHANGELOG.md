@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Added
+- Added async versions of the main API methods: `async_execute`, `async_query`, `async_query_one`, and `async_mutate`
+- Added tests for the async methods
+
+### Changed
+- Replaced the requests library with httpx (with HTTP/2 support) for better performance
+
 ## [3.3.0] - 2025-01-25
 
 - [Added] GitHub Workflow to check for outdated packages on push

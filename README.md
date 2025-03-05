@@ -266,3 +266,55 @@ After release, publish to github:
 `gh release upload v<#.#.#> ./dist/pygqlc-<#.#.#>-py3-none-any.whl`
 
 and don't forget to keep the `CHANGELOG.md` updated!
+
+## Async Usage
+
+Python 3.10+ supports async/await syntax for asynchronous programming. The GraphQLClient class provides async versions of the main methods:
+
+```python
+import asyncio
+from pygqlc import GraphQLClient
+
+async def main():
+    client = GraphQLClient()
+    client.addEnvironment('dev', "https://api.example.com/graphql")
+
+    # Async query
+    data, errors = await client.async_query('''
+        query {
+            users {
+                id
+                name
+            }
+        }
+    ''')
+
+    if not errors:
+        print("Users:", data)
+
+    # Async mutation
+    data, errors = await client.async_mutate('''
+        mutation {
+            createUser(input: {name: "John Doe"}) {
+                user {
+                    id
+                    name
+                }
+            }
+        }
+    ''')
+
+    if not errors:
+        print("Created user:", data)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+The async methods are:
+- `async_execute`: Low-level method to execute GraphQL operations
+- `async_query`: For GraphQL queries
+- `async_query_one`: For queries that return a single item
+- `async_mutate`: For GraphQL mutations
+
+These methods can be used with `await` in async functions and provide the same functionality as their synchronous counterparts, but with the benefits of asynchronous execution.
