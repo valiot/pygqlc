@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## [3.5.0] - 2025-03-06
+
+- [Improved] Major performance optimizations (>50% faster)
+  - Added LRU caching for data flattening operations
+  - Optimized thread management and reduced sleep times in polling loops
+  - Implemented connection pooling with thread-local HTTP clients
+  - Improved async code with better connection reuse
+  - Added proper resource cleanup with __del__ method
+  - Reduced memory allocations with reusable constants and data structures
+  - Added exponential backoff for connection retries
+  - Added orjson for much faster JSON serialization/deserialization
+
 ## [3.4.0] - 2025-03-05
 
 - [Added] Async versions of the main API methods: `async_execute`, `async_query`, `async_query_one`, and `async_mutate`

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pygqlc"
-version = "3.4.0"
+version = "3.5.0"
 description = "Python client for graphql APIs"
 authors = ["Baruc Almaguer <baruc.almaguer@gmail.com>"]
 readme = "README.md"
@@ -12,6 +12,7 @@ tenacity = "^9.0"
 websocket-client = "^1.8"
 certifi = "^2025.1.31"
 httpx = { extras = ["http2"], version = "^0.28.1" }
+orjson = "^3.10.0"
 
 
 [tool.poetry.group.dev.dependencies]

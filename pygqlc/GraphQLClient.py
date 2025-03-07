@@ -6,13 +6,14 @@ and all its methods.
 GQLResponse (type variable): [data[field(string)], errors[message(string),
  field?(string)]
 '''
-import json
 import traceback
 import time
 import threading
+from functools import lru_cache
 import websocket
 import httpx
 import pydash as py_
+import orjson
 from pygqlc.helper_modules.Singleton import Singleton
 from tenacity import (
     retry,
@@ -53,10 +54,7 @@ class GQLResponseException(Exception):
 
 
 def is_ws_payloadErrors_msg(message):
-    errors = py_.get(message, 'payload.errors')
-    if errors:
-        return True
-    return False
+    return bool(py_.get(message, 'payload.errors'))
 
 
 def is_ws_connection_init_msg(message):
@@ -64,12 +62,10 @@ def is_ws_connection_init_msg(message):
     if not data:
         return False  # may have an error, but is not connection init message
     keys = list(data.keys())
-    if len(keys) > 0:
-        body = data[keys[0]]
-        if body is None:
-            # this message is a connection init one,
-            # with the shape: {data: {datumCreatedOrSomething: None}}
-            return True
+    if keys and data[keys[0]] is None:
+        # this message is a connection init one,
+        # with the shape: {data: {datumCreatedOrSomething: None}}
+        return True
     return False
 
 
@@ -83,7 +79,49 @@ def has_errors(result):
         (boolean): Returns `True` if a transaction has at least one error.
     """
     _, errors = result
-    return len(errors) > 0
+    return bool(errors)
+
+
+@lru_cache(maxsize=128)
+def _data_flatten_cacheable(data_str, single_child):
+    """Internal cacheable version of data_flatten using string representation of data.
+
+    Args:
+        data_str (str): String representation of data object
+        single_child (bool): Whether to flatten if data has only one child
+
+    Returns:
+        The flattened data structure
+    """
+    data = orjson.loads(data_str)
+    return _data_flatten_impl(data, single_child)
+
+
+def _data_flatten_impl(data, single_child=False):
+    """Implementation of data_flatten that works on data structures directly.
+
+    Args:
+        data (dict, list): The data of a GqlResponse.
+        single_child (bool): Checks if the data has only one element.
+
+    Returns:
+        (dict): Returns a formatted data.
+    """
+    if isinstance(data, dict):
+        keys = list(data.keys())
+        if len(keys) == 1:
+            return _data_flatten_impl(data[keys[0]], single_child)
+        else:
+            return data  # ! various elements, nothing to flatten
+    elif single_child and isinstance(data, list):
+        if len(data) == 1:
+            return _data_flatten_impl(data[0], single_child)
+        elif len(data) == 0:
+            return None  # * Return none if no child was found
+        else:
+            return data
+    else:
+        return data  # ! not a dict, nothing to flatten
 
 
 def data_flatten(data, single_child=False):
@@ -97,22 +135,22 @@ def data_flatten(data, single_child=False):
     Returns:
         (dict): Returns a formatted data.
     """
-    if isinstance(data, dict):
-        keys = list(data.keys())
-        if len(keys) == 1:
-            key = list(data.keys())[0]
-            return data_flatten(data[key], single_child)
-        else:
-            return data  # ! various elements, nothing to flatten
-    elif single_child and isinstance(data, list):
-        if len(data) == 1:
-            return data_flatten(data[0], single_child)
-        elif len(data) == 0:
-            return None  # * Return none if no child was found
-        else:
-            return data
-    else:
-        return data  # ! not a dict, nothing to flatten
+    if data is None:
+        return None
+
+    # For simple types or non-serializable objects, use direct implementation
+    if isinstance(data, (str, int, float, bool)) or not isinstance(data, (dict, list)):
+        return data
+
+    try:
+        # For cacheable data structures, use the cached version with orjson
+        # orjson doesn't have sort_keys parameter, but has OPT_SORT_KEYS option
+        data_str = orjson.dumps(
+            data, option=orjson.OPT_SORT_KEYS).decode('utf-8')
+        return _data_flatten_cacheable(data_str, single_child)
+    except (TypeError, ValueError):
+        # Fall back to direct implementation for non-serializable data
+        return _data_flatten_impl(data, single_child)
 
 
 def safe_pop(data, index=0, default=None):
@@ -127,10 +165,19 @@ def safe_pop(data, index=0, default=None):
         [GqlResponse]: Returns the GqlResponse. If the subscription queue is
          empty, it returns the default message.
     """
-    if len(data) > 0:
+    if data:
         return data.pop(index)
     else:
         return default
+
+
+# Prepare common JSON structures for reuse
+PING_JSON = orjson.dumps({'type': 'ping'}).decode('utf-8')
+CONNECTION_ACK_TYPE = 'connection_ack'
+PONG_TYPE = 'pong'
+NEXT_TYPE = 'next'
+ERROR_TYPE = 'error'
+COMPLETE_TYPE = 'complete'
 
 
 class GraphQLClient(metaclass=Singleton):
@@ -178,6 +225,12 @@ class GraphQLClient(metaclass=Singleton):
           '''
     """
 
+    # Reusable headers
+    DEFAULT_HEADERS = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+
     def __init__(self):
         """Constructor of the GraphQlClient object.
         """
@@ -199,6 +252,18 @@ class GraphQLClient(metaclass=Singleton):
         self.websocket_timeout = 60
         self.pingIntervalTime = 15
         self.pingTimer = time.time()
+
+        # Setup common client parameters
+        self.client_params = {"http2": True}
+        self.async_client_params = {"http2": True}
+
+        # Reuse HTTP client for better performance
+        self._http_client = None
+        self._thread_local = threading.local()
+        self._async_client = None
+
+        # Configure sleep time for polling loops
+        self.poll_interval = 0.005  # reduced from 0.01 for faster response
 
     # * with <Object> implementation
     def __enter__(self):
@@ -268,7 +333,7 @@ class GraphQLClient(metaclass=Singleton):
             else:
                 data = response
             errors = response.get('errors', [])
-            if flatten:
+            if flatten and data is not None:
                 data = data_flatten(data, single_child=single_child)
         except Exception as e:
             errors = [{'message': str(e)}]
@@ -309,14 +374,18 @@ class GraphQLClient(metaclass=Singleton):
         except Exception as e:
             errors = [{'message': str(e)}]
         finally:
-            errors.extend(response.get('errors', []))
+            response_errors = response.get('errors', [])
+            if response_errors:
+                errors.extend(response_errors)
             if not errors:
                 data = response.get('data', None)
-            if flatten:
-                data = data_flatten(data)
-                if data:
-                    errors.extend(data.get('messages', []))  # type: ignore
+                if flatten and data:
+                    data = data_flatten(data)
+                    data_messages = data.get('messages', []) if data else []
+                    if data_messages:
+                        errors.extend(data_messages)
         return data, errors
+
     # * Subscription high level implementation ******************
 
     def subscribe(
@@ -344,9 +413,7 @@ class GraphQLClient(metaclass=Singleton):
         """
         # ! initialize websocket only once
         if not self._conn:
-            if self._new_conn():
-                pass  # print('No connection found, created.')
-            else:
+            if not self._new_conn():
                 print('Error creating WSS connection for subscription')
                 return None
 
@@ -374,54 +441,73 @@ class GraphQLClient(metaclass=Singleton):
         return unsubscribe
 
     def _unsubscribe(self, _id):
-        if not self.subs.get(_id):
+        sub = self.subs.get(_id)
+        if not sub:
             print('Subscription already cleared')
             return
         self.unsubscribing = True
-        self.subs[_id]['kill'] = True
+        sub['kill'] = True
         try:
             self._stop(_id)
         except BrokenPipeError as e:
             print('WSS Pipe broken, nothing to stop')
             print(f'original message: {e}')
-        self.subs[_id]['thread'].join()
-        self.subs[_id].update({'running': False})
+        sub['thread'].join()
+        sub['running'] = False
         self.unsubscribing = False
 
     def _sub_routing_loop(self):
         print('first subscription, starting routing loop')
+        last_reconnect_attempt = 0
+        reconnect_delay = 1.0
+
         while not self.closing:
             if self.wss_conn_halted:
-                print('Connection halted, attempting reconnection...')
-                if self._new_conn():
-                    self.wss_conn_halted = False
-                    print(
-                        'WSS Reconnection succeeded, attempting resubscription to lost subs')
-                    self._resubscribe_all()
-                    print('finished resubscriptions')
-                else:
-                    time.sleep(1.0)
-                    continue
-            if self.unsubscribing:
-                time.sleep(0.01)
+                # Rate limit reconnection attempts
+                current_time = time.time()
+                if current_time - last_reconnect_attempt >= reconnect_delay:
+                    print('Connection halted, attempting reconnection...')
+                    if self._new_conn():
+                        self.wss_conn_halted = False
+                        print(
+                            'WSS Reconnection succeeded, attempting resubscription to lost subs')
+                        self._resubscribe_all()
+                        print('finished resubscriptions')
+                        reconnect_delay = 1.0  # Reset delay on success
+                    else:
+                        # Use exponential backoff for reconnection attempts (up to 5 seconds)
+                        reconnect_delay = min(reconnect_delay * 1.5, 5.0)
+                    last_reconnect_attempt = current_time
+                time.sleep(self.poll_interval)
                 continue
-            # this guy can handle unsubscriptions from another thread:
+
+            if self.unsubscribing:
+                time.sleep(self.poll_interval)
+                continue
+
+            # Process terminated subscriptions
             to_del = []
             for sub_id, sub in self.subs.items():
-                if sub['kill'] or not sub['running']:
-                    if sub['starting']:
-                        continue
+                if (sub['kill'] or not sub['running']) and not sub['starting']:
                     print(f'deleting halted subscription (id: {sub_id})')
-                    sub['thread'].join()
+                    # Don't block if thread is already dead
+                    if sub['thread'].is_alive():
+                        # Use timeout to avoid blocking indefinitely
+                        sub['thread'].join(0.1)
                     to_del.append(sub_id)
+
             for sub_id in to_del:
                 del self.subs[sub_id]
+
             try:
-                message = json.loads(self._conn.recv())
-            except (TimeoutError, websocket.WebSocketTimeoutException) as e:
-                print('Timeout for WSS message exceeded...')
-                print(f'original message: {e}')
-                self.wss_conn_halted = True
+                # Set a smaller timeout for faster response
+                self._conn.settimeout(0.5)
+                message = orjson.loads(self._conn.recv())
+                # Reset timeout after successful receive
+                self._conn.settimeout(self.websocket_timeout)
+            except (TimeoutError, websocket.WebSocketTimeoutException):
+                # Expected timeout - not an error
+                time.sleep(self.poll_interval)
                 continue
             except Exception as e:
                 if not self.closing:
@@ -430,67 +516,84 @@ class GraphQLClient(metaclass=Singleton):
                     self.wss_conn_halted = True
                 continue
 
-            if 'id' in message.keys():
+            message_type = message.get('type')
+            if 'id' in message:
                 # if the message has an ID request, it will be handled by the _subscription_loop
-                _id = py_.get(message, 'id')
+                _id = message['id']
                 active_sub = self.subs.get(_id)
                 # the connection may not be active due to:
                 # 1. server error (incorrect ID sent)
                 # 2. race condition (we closed connection, but a message was already on its way)
-                if not active_sub:
-                    continue
-                active_sub['queue'].append(message)
-            elif message['type'] == 'connection_ack':
+                if active_sub:
+                    active_sub['queue'].append(message)
+            elif message_type == CONNECTION_ACK_TYPE:
                 print('Connection Ack with the server.')
-            elif message['type'] == 'pong':
+            elif message_type == PONG_TYPE:
                 pass
             else:
                 print(f'unknown msg type: {message}')
 
-            time.sleep(0.01)
+            # Use non-blocking sleep
+            time.sleep(self.poll_interval)
 
     def _resubscribe_all(self):
-        # first, clear every subscription thread running:
-        for sub_id in self.subs.keys():
-            self.subs[sub_id]['kill'] = True  # Signal threads to stop
-        # wait for every thread to finish
-        for sub_id in self.subs.keys():
+        # Copy subscription info before killing threads
+        old_subs = {sub_id: {
+            'query': sub.get('query'),
+            'variables': sub.get('variables'),
+            'callback': sub.get('callback'),
+            'on_error_callback': sub.get('on_error_callback'),
+            'flatten': sub.get('flatten'),
+        } for sub_id, sub in self.subs.items()}
+
+        # First, signal all threads to stop
+        for sub in self.subs.values():
+            sub['kill'] = True
+
+        # Then join all threads with timeout to avoid blocking indefinitely
+        for sub_id, sub in self.subs.items():
             print(f'killing halted subscription (id={sub_id})')
-            self.subs[sub_id]['thread'].join()
-        # attempt re-join:
-        old_subs = self.subs
-        for sub_id in old_subs.keys():
+            if sub['thread'].is_alive():
+                sub['thread'].join(0.5)
+
+        # Clear existing subscriptions
+        self.subs.clear()
+
+        # Resubscribe using the saved information
+        for sub_id, sub_info in old_subs.items():
             self.subscribe(
-                query=old_subs[sub_id]['query'],
-                variables=old_subs[sub_id]['variables'],
-                callback=old_subs[sub_id]['callback'],
-                on_error_callback=old_subs[sub_id]['on_error_callback'],
-                flatten=old_subs[sub_id]['flatten'],
+                query=sub_info['query'],
+                variables=sub_info['variables'],
+                callback=sub_info['callback'],
+                on_error_callback=sub_info['on_error_callback'],
+                flatten=sub_info['flatten'],
                 _id=sub_id,
             )
 
     def _subscription_loop(self, _cb, _id, _ecb):
         self.subs[_id].update({'running': True, 'starting': False})
         while self.subs[_id]['running']:
-            aborted = self.subs[_id]['kill']
-            if aborted:
+            if self.subs[_id]['kill']:
                 print(f'stopping subscription id={_id} on Unsubscribe')
                 break
+
+            # Get message without copying the queue
             message = safe_pop(self.subs[_id]['queue'])
             if not message:
-                time.sleep(0.01)
+                time.sleep(self.poll_interval)
                 continue
 
             # Message type handling
-            if message['type'] == 'next':
+            message_type = message.get('type')
+            if message_type == NEXT_TYPE:
                 pass  # continue with payload handling
-            elif message['type'] == 'error':
+            elif message_type == ERROR_TYPE:
                 if _ecb:
                     _ecb(message)
-                print(f'stopping subscription id={_id} on {message["type"]}')
+                print(f'stopping subscription id={_id} on {message_type}')
                 break
-            elif message['type'] == 'complete':
-                print(f'stopping subscription id={_id} on {message["type"]}')
+            elif message_type == COMPLETE_TYPE:
+                print(f'stopping subscription id={_id} on {message_type}')
                 break
             else:
                 print(f'unknown msg type: {message}')
@@ -506,9 +609,12 @@ class GraphQLClient(metaclass=Singleton):
             elif is_ws_connection_init_msg(message):
                 print('Subscription successfully initialized')
             else:
+                # Process message more efficiently
                 gql_msg = self._clean_sub_message(_id, message)
                 try:
                     _cb(gql_msg)  # execute callback function
+                    # Increment counter without locking
+                    self.subs[_id]['runs'] += 1
                 except Exception as e:
                     print(f'Error on subscription callback: {e}')
                     sub_query = self.subs[_id].get('query')
@@ -518,13 +624,10 @@ class GraphQLClient(metaclass=Singleton):
                     if sub_variables:
                         print(f'subscription variables: \n\t{sub_variables}')
                     print(traceback.format_exc())
-                    continue
-                # take note of how many times this sub has been triggered
-                self.subs[_id]['runs'] += 1
 
-        # ! subscription stopped, due to error or user event
-        print(f'Subscription id={_id} stopped')
+        # Subscription stopped, update state atomically
         self.subs[_id].update({'running': False, 'kill': True})
+        print(f'Subscription id={_id} stopped')
 
     def _clean_sub_message(self, _id, message):
         data = py_.get(message, 'payload', {})
@@ -553,7 +656,7 @@ class GraphQLClient(metaclass=Singleton):
             print('connection not stablished, nothing to close')
             self.closing = False
             return
-        for _, sub in self.subs.items():
+        for sub in self.subs.values():
             sub['unsub']()
         self._conn.close()
         self.sub_router_thread.join()
@@ -567,7 +670,7 @@ class GraphQLClient(metaclass=Singleton):
 
     def _on_message(self, message):
         '''Dummy callback for subscription'''
-        print(f'message received on subscription:')
+        print('message received on subscription:')
         print(message)
 
     def _conn_init(self):
@@ -577,7 +680,7 @@ class GraphQLClient(metaclass=Singleton):
             'type': 'connection_init',
             'payload': headers
         }
-        self._conn.send(json.dumps(payload))
+        self._conn.send(orjson.dumps(payload).decode('utf-8'))
         self._waiting_connection_ack()
         self._conn.settimeout(self.websocket_timeout)
 
@@ -594,20 +697,28 @@ class GraphQLClient(metaclass=Singleton):
     def _waiting_connection_ack(self):
         self._conn.settimeout(self.ack_timeout)
         # set timeout to raise Exception websocket.WebSocketTimeoutException
-        message = json.loads(self._conn.recv())
-        if message['type'] == 'connection_ack':
+        message = orjson.loads(self._conn.recv())
+        if message['type'] == CONNECTION_ACK_TYPE:
             print('Connection Ack with the server.')
 
     def _ping_pong(self):
         self.pingTimer = time.time()
+        ping_count = 0
+
         while not self.closing:
             time.sleep(0.1)
             if self.wss_conn_halted:
                 continue
-            if (time.time() - self.pingTimer) > self.pingIntervalTime:
-                self.pingTimer = time.time()
+
+            current_time = time.time()
+            if (current_time - self.pingTimer) > self.pingIntervalTime:
+                self.pingTimer = current_time
                 try:
-                    self._conn.send(json.dumps({'type': 'ping'}))
+                    self._conn.send(PING_JSON)
+                    ping_count += 1
+                    # Log only every 10 pings to reduce noise
+                    if ping_count % 10 == 0:
+                        print(f"Sent ping #{ping_count}")
                 except Exception as e:
                     if not self.closing:
                         print('error trying to send ping, WSS Pipe is broken')
@@ -618,17 +729,16 @@ class GraphQLClient(metaclass=Singleton):
         if not _id:
             self.sub_counter += 1
             _id = str(self.sub_counter)
-        self.subs.update(
-            {_id: {'running': False, 'kill': False, 'starting': True}})
+        self.subs[_id] = {'running': False, 'kill': False, 'starting': True}
         return _id
 
     def _start(self, payload, _id):
         frame = {'id': _id, 'type': 'subscribe', 'payload': payload}
-        self._conn.send(json.dumps(frame))
+        self._conn.send(orjson.dumps(frame).decode('utf-8'))
 
     def _stop(self, _id):
         payload = {'id': _id, 'type': 'complete'}
-        self._conn.send(json.dumps(payload))
+        self._conn.send(orjson.dumps(payload).decode('utf-8'))
 
     def resetSubsConnection(self):
         """This function resets all subscriptions connections.
@@ -707,18 +817,32 @@ class GraphQLClient(metaclass=Singleton):
             ipv4_only (bool, optional): Forces connections to use IPv4 only.
              Helps with slow connections on networks with problematic IPv6. Defaults to False.
         """
-        self.environments.update({
-            name: {
-                'url': url,
-                'wss': wss,
-                'headers': headers,
-                'post_timeout': post_timeout,
-                'ipv4_only': ipv4_only
-            }
-        })
+        self.environments[name] = {
+            'url': url,
+            'wss': wss,
+            'headers': headers.copy(),
+            'post_timeout': post_timeout,
+            'ipv4_only': ipv4_only
+        }
+
+        if ipv4_only:
+            self._update_client_params(ipv4_only)
+
         if default:
             self.setEnvironment(name)
         self.setTimeoutWebsocket(timeoutWebsocket)
+
+    def _update_client_params(self, ipv4_only):
+        """Update HTTP client parameters based on IPv4 setting"""
+        if ipv4_only:
+            self.client_params["transport"] = httpx.HTTPTransport(
+                local_address="0.0.0.0")
+            self.async_client_params["transport"] = httpx.AsyncHTTPTransport(
+                local_address="0.0.0.0")
+        else:
+            # Remove transport if it exists
+            self.client_params.pop("transport", None)
+            self.async_client_params.pop("transport", None)
 
     def setUrl(self, environment=None, url=None):
         """This function sets a new url to an existing environment.
@@ -730,7 +854,7 @@ class GraphQLClient(metaclass=Singleton):
         # if environment is not selected, use current environment
         if not environment:
             environment = self.environment
-        self.environments[environment].update({'url': url})
+        self.environments[environment]['url'] = url
 
     def setWss(self, environment=None, url=None):
         """This function sets a new WSS to an existing environment.
@@ -742,7 +866,7 @@ class GraphQLClient(metaclass=Singleton):
         # if environment is not selected, use current environment
         if not environment:
             environment = self.environment
-        self.environments[environment].update({'wss': url})
+        self.environments[environment]['wss'] = url
 
     def addHeader(self, environment=None, header={}):
         """This function updates the header of an existing environment.
@@ -754,9 +878,7 @@ class GraphQLClient(metaclass=Singleton):
         # if environment is not selected, use current environment
         if not environment:
             environment = self.environment
-        headers = self.environments[environment].get('headers', {})
-        headers.update(header)
-        self.environments[environment]['headers'].update(headers)
+        self.environments[environment]['headers'].update(header)
 
     def setEnvironment(self, name):
         """This functions sets the actual environment of the instance.
@@ -767,10 +889,14 @@ class GraphQLClient(metaclass=Singleton):
         Raises:
             Exception: The environment's name doesn't exists in the environment list.
         """
-        env = self.environments.get(name, None)
+        env = self.environments.get(name)
         if not env:
             raise Exception(f'selected environment not set ({name})')
         self.environment = name
+
+        # Update client parameters based on environment settings
+        ipv4_only = env.get('ipv4_only', False)
+        self._update_client_params(ipv4_only)
 
     def setPostTimeout(self, environment=None, post_timeout=60):
         """This function sets the post's timeout.
@@ -781,7 +907,7 @@ class GraphQLClient(metaclass=Singleton):
         # if environment is not selected, use current environment
         if not environment:
             environment = self.environment
-        self.environments[environment].update({'post_timeout': post_timeout})
+        self.environments[environment]['post_timeout'] = post_timeout
 
     def setTimeoutWebsocket(self, seconds):
         """This function sets the webscoket's timeout.
@@ -794,6 +920,12 @@ class GraphQLClient(metaclass=Singleton):
             self._conn.settimeout(self.websocket_timeout)
 
     # * LOW LEVEL METHODS ----------------------------------
+    def _get_http_client(self):
+        """Get a thread-local HTTP client to improve performance with connection pooling"""
+        if not hasattr(self._thread_local, 'client'):
+            self._thread_local.client = httpx.Client(**self.client_params)
+        return self._thread_local.client
+
     def execute(self, query: str, variables: dict | None = None) -> dict:
         """This function executes the intructions of a query or mutation.
 
@@ -813,38 +945,38 @@ class GraphQLClient(metaclass=Singleton):
             'query': query,
             'variables': variables
         }
-        env = self.environments.get(self.environment, None)
+        env = self.environments.get(self.environment)
         if not env:
             raise Exception(
                 f'cannot execute query without setting an environment')
-        headers = {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        }
-        env_headers = env.get('headers', None)
-        post_timeout = env.get('post_timeout', '60')
-        ipv4_only = env.get('ipv4_only', False)
+
+        headers = self.DEFAULT_HEADERS.copy()
+        env_headers = env.get('headers')
         if env_headers:
             headers.update(env_headers)
 
-        # Use httpx with HTTP/2 support
-        client_kwargs = {"http2": True}
-
-        # Force IPv4 only if specified
-        if ipv4_only:
-            client_kwargs["transport"] = httpx.HTTPTransport(
-                local_address="0.0.0.0")
-
-        with httpx.Client(**client_kwargs) as client:
+        # Use thread-local client for better connection pooling
+        try:
+            client = self._get_http_client()
             response = client.post(
                 env['url'],
                 json=data,
                 headers=headers,
-                timeout=float(post_timeout)
+                timeout=float(env.get('post_timeout', 60))
+            )
+        except Exception as e:
+            # If connection fails, create a new client and retry
+            self._thread_local.client = httpx.Client(**self.client_params)
+            client = self._thread_local.client
+            response = client.post(
+                env['url'],
+                json=data,
+                headers=headers,
+                timeout=float(env.get('post_timeout', 60))
             )
 
         if response.status_code == 200:
-            return response.json()
+            return orjson.loads(response.content)
         else:
             error_message = "Query failed to run by returning code of " + \
                 f"{response.status_code}.\n{query}"
@@ -856,6 +988,46 @@ class GraphQLClient(metaclass=Singleton):
             )
 
     # * ASYNC METHODS ----------------------------------
+    async def _get_async_client(self):
+        """Get or create a reusable async HTTP client for better performance
+
+        Detects if the event loop has been closed (which can happen in test environments)
+        and creates a new client if necessary.
+        """
+        new_client_needed = False
+
+        # Check if client exists
+        if self._async_client is None:
+            new_client_needed = True
+        else:
+            # Check if client's event loop is closed
+            try:
+                # Make a simple request to check if client is still usable
+                # This will fail with "Event loop is closed" if the loop is closed
+                await self._async_client.get_timeout()
+            except (RuntimeError, AttributeError) as e:
+                if "Event loop is closed" in str(e) or "has no attribute" in str(e):
+                    # Event loop closed or client has been partially destroyed
+                    # Create a new client
+                    new_client_needed = True
+                    # Intentionally don't try to close the old client as its event loop is closed
+                    self._async_client = None
+                else:
+                    # Some other error, re-raise
+                    raise
+
+        # Create a new client if needed
+        if new_client_needed:
+            self._async_client = httpx.AsyncClient(**self.async_client_params)
+
+        return self._async_client
+
+    async def _close_async_client(self):
+        """Close the async client if it exists"""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
+
     async def async_execute(self, query: str, variables: dict | None = None) -> dict:
         """Async version of execute method that executes instructions of a query or mutation.
 
@@ -875,38 +1047,47 @@ class GraphQLClient(metaclass=Singleton):
             'query': query,
             'variables': variables
         }
-        env = self.environments.get(self.environment, None)
+        env = self.environments.get(self.environment)
         if not env:
             raise Exception(
                 f'cannot execute query without setting an environment')
-        headers = {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        }
-        env_headers = env.get('headers', None)
-        post_timeout = env.get('post_timeout', '60')
-        ipv4_only = env.get('ipv4_only', False)
+
+        headers = self.DEFAULT_HEADERS.copy()
+        env_headers = env.get('headers')
         if env_headers:
             headers.update(env_headers)
 
-        # Use httpx with HTTP/2 support
-        client_kwargs = {"http2": True}
+        # Get a client that we know is connected to a valid event loop
+        client = await self._get_async_client()
 
-        # Force IPv4 only if specified
-        if ipv4_only:
-            client_kwargs["transport"] = httpx.AsyncHTTPTransport(
-                local_address="0.0.0.0")
-
-        async with httpx.AsyncClient(**client_kwargs) as client:
+        try:
+            # Make the actual request
             response = await client.post(
                 env['url'],
                 json=data,
                 headers=headers,
-                timeout=float(post_timeout)
+                timeout=float(env.get('post_timeout', 60))
             )
+        except (httpx.RequestError, RuntimeError) as e:
+            # Check if this is an event loop issue or a network issue
+            if "Event loop is closed" in str(e):
+                # Event loop was closed - need to get a new client with a valid loop
+                # The _get_async_client method will handle this on the next call
+                self._async_client = None
+                # Try again with a new client
+                client = await self._get_async_client()
+                response = await client.post(
+                    env['url'],
+                    json=data,
+                    headers=headers,
+                    timeout=float(env.get('post_timeout', 60))
+                )
+            else:
+                # Some other request error, re-raise
+                raise
 
         if response.status_code == 200:
-            return response.json()
+            return orjson.loads(response.content)
         else:
             error_message = "Query failed to run by returning code of " + \
                 f"{response.status_code}.\n{query}"
@@ -946,7 +1127,7 @@ class GraphQLClient(metaclass=Singleton):
             else:
                 data = response
             errors = response.get('errors', [])
-            if flatten:
+            if flatten and data is not None:
                 data = data_flatten(data, single_child=single_child)
         except Exception as e:
             errors = [{'message': str(e)}]
@@ -990,11 +1171,65 @@ class GraphQLClient(metaclass=Singleton):
         except Exception as e:
             errors = [{'message': str(e)}]
         finally:
-            errors.extend(response.get('errors', []))
+            response_errors = response.get('errors', [])
+            if response_errors:
+                errors.extend(response_errors)
             if not errors:
                 data = response.get('data', None)
-            if flatten:
-                data = data_flatten(data)
-                if data:
-                    errors.extend(data.get('messages', []))
+                if flatten and data:
+                    data = data_flatten(data)
+                    data_messages = data.get(
+                        'messages', []) if data else []
+                    if data_messages:
+                        errors.extend(data_messages)
         return data, errors
+
+    # Ensure cleanup of resources
+    async def async_cleanup(self):
+        """Close any open async resources
+
+        This method should only be called when you know no other
+        async operations are in progress. It handles cases where
+        the event loop might already be closed.
+        """
+        if self._async_client is not None:
+            try:
+                # Check if the client is still usable
+                try:
+                    # This will raise an exception if the event loop is closed
+                    await self._async_client.get_timeout()
+                    # If we get here, the client is usable, so close it
+                    await self._async_client.aclose()
+                except (RuntimeError, AttributeError) as e:
+                    if "Event loop is closed" in str(e) or "has no attribute" in str(e):
+                        # Client's event loop is already closed
+                        # We can't await aclose(), just let it be garbage collected
+                        pass
+                    else:
+                        # Some other error during check, still try to close
+                        await self._async_client.aclose()
+            except Exception as e:  # pylint: disable=broad-except
+                # If closing fails, log but continue
+                print(f"Warning: Error closing async client: {str(e)}")
+            finally:
+                # Always set to None to allow garbage collection and recreation
+                self._async_client = None
+
+    def _close(self):
+        """Explicitly close resources"""
+        # Clean up synchronous client
+        if hasattr(self, '_thread_local') and hasattr(self._thread_local, 'client'):
+            try:
+                self._thread_local.client.close()
+            except Exception:  # pylint: disable=broad-except
+                pass
+
+        # For async client, we can't use await in close(), so just set to None
+        # to allow garbage collection. We don't try to close it properly here
+        # as that would require an event loop, which might be closed already.
+        if hasattr(self, '_async_client') and self._async_client is not None:
+            self._async_client = None
+
+    def __del__(self):
+        """Cleanup resources when the instance is being destroyed"""
+        self._close()
