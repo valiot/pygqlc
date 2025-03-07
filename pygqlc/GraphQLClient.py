@@ -145,7 +145,8 @@ def data_flatten(data, single_child=False):
     try:
         # For cacheable data structures, use the cached version with orjson
         # orjson doesn't have sort_keys parameter, but has OPT_SORT_KEYS option
-        data_str = orjson.dumps(data, option=orjson.OPT_SORT_KEYS).decode('utf-8')
+        data_str = orjson.dumps(
+            data, option=orjson.OPT_SORT_KEYS).decode('utf-8')
         return _data_flatten_cacheable(data_str, single_child)
     except (TypeError, ValueError):
         # Fall back to direct implementation for non-serializable data
@@ -172,8 +173,6 @@ def safe_pop(data, index=0, default=None):
 
 # Prepare common JSON structures for reuse
 PING_JSON = orjson.dumps({'type': 'ping'}).decode('utf-8')
-EMPTY_DICT = {}
-EMPTY_LIST = []
 CONNECTION_ACK_TYPE = 'connection_ack'
 PONG_TYPE = 'pong'
 NEXT_TYPE = 'next'
@@ -326,14 +325,14 @@ class GraphQLClient(metaclass=Singleton):
             tuple: Tuple containing (data, errors) from the GraphQL response.
         """
         data = None
-        errors = EMPTY_LIST.copy()
+        errors = []
         try:
             response = self.execute(query, variables)
             if flatten:
                 data = response.get('data', None)
             else:
                 data = response
-            errors = response.get('errors', EMPTY_LIST.copy())
+            errors = response.get('errors', [])
             if flatten and data is not None:
                 data = data_flatten(data, single_child=single_child)
         except Exception as e:
@@ -369,21 +368,20 @@ class GraphQLClient(metaclass=Singleton):
         """
         response = {}
         data = None
-        errors = EMPTY_LIST.copy()
+        errors = []
         try:
             response = self.execute(mutation, variables)
         except Exception as e:
             errors = [{'message': str(e)}]
         finally:
-            response_errors = response.get('errors', EMPTY_LIST)
+            response_errors = response.get('errors', [])
             if response_errors:
                 errors.extend(response_errors)
             if not errors:
                 data = response.get('data', None)
                 if flatten and data:
                     data = data_flatten(data)
-                    data_messages = data.get(
-                        'messages', EMPTY_LIST) if data else EMPTY_LIST
+                    data_messages = data.get('messages', []) if data else []
                     if data_messages:
                         errors.extend(data_messages)
         return data, errors
@@ -632,7 +630,7 @@ class GraphQLClient(metaclass=Singleton):
         print(f'Subscription id={_id} stopped')
 
     def _clean_sub_message(self, _id, message):
-        data = py_.get(message, 'payload', EMPTY_DICT.copy())
+        data = py_.get(message, 'payload', {})
         return data_flatten(data) if self.subs[_id]['flatten'] else data
 
     def _new_conn(self):
@@ -677,7 +675,7 @@ class GraphQLClient(metaclass=Singleton):
 
     def _conn_init(self):
         env = self.environments.get(self.environment, None)
-        headers = env.get('headers', EMPTY_DICT.copy())
+        headers = env.get('headers', {})
         payload = {
             'type': 'connection_init',
             'payload': headers
@@ -1121,14 +1119,14 @@ class GraphQLClient(metaclass=Singleton):
             tuple: Tuple containing (data, errors) from the GraphQL response.
         """
         data = None
-        errors = EMPTY_LIST.copy()
+        errors = []
         try:
             response = await self.async_execute(query, variables)
             if flatten:
                 data = response.get('data', None)
             else:
                 data = response
-            errors = response.get('errors', EMPTY_LIST.copy())
+            errors = response.get('errors', [])
             if flatten and data is not None:
                 data = data_flatten(data, single_child=single_child)
         except Exception as e:
@@ -1167,13 +1165,13 @@ class GraphQLClient(metaclass=Singleton):
         """
         response = {}
         data = None
-        errors = EMPTY_LIST.copy()
+        errors = []
         try:
             response = await self.async_execute(mutation, variables)
         except Exception as e:
             errors = [{'message': str(e)}]
         finally:
-            response_errors = response.get('errors', EMPTY_LIST)
+            response_errors = response.get('errors', [])
             if response_errors:
                 errors.extend(response_errors)
             if not errors:
@@ -1181,7 +1179,7 @@ class GraphQLClient(metaclass=Singleton):
                 if flatten and data:
                     data = data_flatten(data)
                     data_messages = data.get(
-                        'messages', EMPTY_LIST) if data else EMPTY_LIST
+                        'messages', []) if data else []
                     if data_messages:
                         errors.extend(data_messages)
         return data, errors
