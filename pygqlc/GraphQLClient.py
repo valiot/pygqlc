@@ -381,7 +381,8 @@ class GraphQLClient(metaclass=Singleton):
                 data = response.get('data', None)
                 if flatten and data:
                     data = data_flatten(data)
-                    data_messages = data.get('messages', EMPTY_LIST) if data else EMPTY_LIST
+                    data_messages = data.get(
+                        'messages', EMPTY_LIST) if data else EMPTY_LIST
                     if data_messages:
                         errors.extend(data_messages)
         return data, errors
@@ -492,7 +493,8 @@ class GraphQLClient(metaclass=Singleton):
                     print(f'deleting halted subscription (id: {sub_id})')
                     # Don't block if thread is already dead
                     if sub['thread'].is_alive():
-                        sub['thread'].join(0.1)  # Use timeout to avoid blocking indefinitely
+                        # Use timeout to avoid blocking indefinitely
+                        sub['thread'].join(0.1)
                     to_del.append(sub_id)
 
             for sub_id in to_del:
@@ -834,8 +836,10 @@ class GraphQLClient(metaclass=Singleton):
     def _update_client_params(self, ipv4_only):
         """Update HTTP client parameters based on IPv4 setting"""
         if ipv4_only:
-            self.client_params["transport"] = httpx.HTTPTransport(local_address="0.0.0.0")
-            self.async_client_params["transport"] = httpx.AsyncHTTPTransport(local_address="0.0.0.0")
+            self.client_params["transport"] = httpx.HTTPTransport(
+                local_address="0.0.0.0")
+            self.async_client_params["transport"] = httpx.AsyncHTTPTransport(
+                local_address="0.0.0.0")
         else:
             # Remove transport if it exists
             self.client_params.pop("transport", None)
@@ -986,9 +990,37 @@ class GraphQLClient(metaclass=Singleton):
 
     # * ASYNC METHODS ----------------------------------
     async def _get_async_client(self):
-        """Get or create a reusable async HTTP client for better performance"""
+        """Get or create a reusable async HTTP client for better performance
+
+        Detects if the event loop has been closed (which can happen in test environments)
+        and creates a new client if necessary.
+        """
+        new_client_needed = False
+
+        # Check if client exists
         if self._async_client is None:
+            new_client_needed = True
+        else:
+            # Check if client's event loop is closed
+            try:
+                # Make a simple request to check if client is still usable
+                # This will fail with "Event loop is closed" if the loop is closed
+                await self._async_client.get_timeout()
+            except (RuntimeError, AttributeError) as e:
+                if "Event loop is closed" in str(e) or "has no attribute" in str(e):
+                    # Event loop closed or client has been partially destroyed
+                    # Create a new client
+                    new_client_needed = True
+                    # Intentionally don't try to close the old client as its event loop is closed
+                    self._async_client = None
+                else:
+                    # Some other error, re-raise
+                    raise
+
+        # Create a new client if needed
+        if new_client_needed:
             self._async_client = httpx.AsyncClient(**self.async_client_params)
+
         return self._async_client
 
     async def _close_async_client(self):
@@ -1026,25 +1058,34 @@ class GraphQLClient(metaclass=Singleton):
         if env_headers:
             headers.update(env_headers)
 
-        # Use a single async client for better connection pooling
+        # Get a client that we know is connected to a valid event loop
+        client = await self._get_async_client()
+
         try:
-            client = await self._get_async_client()
+            # Make the actual request
             response = await client.post(
                 env['url'],
                 json=data,
                 headers=headers,
                 timeout=float(env.get('post_timeout', 60))
             )
-        except Exception as e:
-            # If connection fails, create a new client and retry
-            await self._close_async_client()
-            client = await self._get_async_client()
-            response = await client.post(
-                env['url'],
-                json=data,
-                headers=headers,
-                timeout=float(env.get('post_timeout', 60))
-            )
+        except (httpx.RequestError, RuntimeError) as e:
+            # Check if this is an event loop issue or a network issue
+            if "Event loop is closed" in str(e):
+                # Event loop was closed - need to get a new client with a valid loop
+                # The _get_async_client method will handle this on the next call
+                self._async_client = None
+                # Try again with a new client
+                client = await self._get_async_client()
+                response = await client.post(
+                    env['url'],
+                    json=data,
+                    headers=headers,
+                    timeout=float(env.get('post_timeout', 60))
+                )
+            else:
+                # Some other request error, re-raise
+                raise
 
         if response.status_code == 200:
             return response.json()
@@ -1138,20 +1179,54 @@ class GraphQLClient(metaclass=Singleton):
                 data = response.get('data', None)
                 if flatten and data:
                     data = data_flatten(data)
-                    data_messages = data.get('messages', EMPTY_LIST) if data else EMPTY_LIST
+                    data_messages = data.get(
+                        'messages', EMPTY_LIST) if data else EMPTY_LIST
                     if data_messages:
                         errors.extend(data_messages)
         return data, errors
 
     # Ensure cleanup of resources
     async def async_cleanup(self):
-        """Close any open async resources"""
-        await self._close_async_client()
+        """Close any open async resources
+
+        This method should only be called when you know no other
+        async operations are in progress. It handles cases where
+        the event loop might already be closed.
+        """
+        if self._async_client is not None:
+            try:
+                # Check if the client is still usable
+                try:
+                    # This will raise an exception if the event loop is closed
+                    await self._async_client.get_timeout()
+                    # If we get here, the client is usable, so close it
+                    await self._async_client.aclose()
+                except (RuntimeError, AttributeError) as e:
+                    if "Event loop is closed" in str(e) or "has no attribute" in str(e):
+                        # Client's event loop is already closed
+                        # We can't await aclose(), just let it be garbage collected
+                        pass
+                    else:
+                        # Some other error during check, still try to close
+                        await self._async_client.aclose()
+            except Exception as e:  # pylint: disable=broad-except
+                # If closing fails, log but continue
+                print(f"Warning: Error closing async client: {str(e)}")
+            finally:
+                # Always set to None to allow garbage collection and recreation
+                self._async_client = None
 
     def __del__(self):
         """Cleanup resources when the instance is being destroyed"""
+        # Clean up synchronous client
         if hasattr(self, '_thread_local') and hasattr(self._thread_local, 'client'):
             try:
                 self._thread_local.client.close()
-            except:
+            except:  # pylint: disable=bare-except
                 pass
+
+        # For async client, we can't use await in __del__, so just set to None
+        # to allow garbage collection. We don't try to close it properly here
+        # as that would require an event loop, which might be closed already.
+        if hasattr(self, '_async_client') and self._async_client is not None:
+            self._async_client = None
