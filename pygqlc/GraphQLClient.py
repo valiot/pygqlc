@@ -1223,8 +1223,12 @@ class GraphQLClient(metaclass=Singleton):
         if hasattr(self, '_thread_local') and hasattr(self._thread_local, 'client'):
             try:
                 self._thread_local.client.close()
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=broad-except
                 pass
+            except KeyboardInterrupt:
+                raise
+            except SystemExit:
+                raise
 
         # For async client, we can't use await in close(), so just set to None
         # to allow garbage collection. We don't try to close it properly here
