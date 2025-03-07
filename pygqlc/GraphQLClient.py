@@ -1217,8 +1217,8 @@ class GraphQLClient(metaclass=Singleton):
                 # Always set to None to allow garbage collection and recreation
                 self._async_client = None
 
-    def __del__(self):
-        """Cleanup resources when the instance is being destroyed"""
+    def close(self):
+        """Explicitly close resources"""
         # Clean up synchronous client
         if hasattr(self, '_thread_local') and hasattr(self._thread_local, 'client'):
             try:
@@ -1226,8 +1226,12 @@ class GraphQLClient(metaclass=Singleton):
             except:  # pylint: disable=bare-except
                 pass
 
-        # For async client, we can't use await in __del__, so just set to None
+        # For async client, we can't use await in close(), so just set to None
         # to allow garbage collection. We don't try to close it properly here
         # as that would require an event loop, which might be closed already.
         if hasattr(self, '_async_client') and self._async_client is not None:
             self._async_client = None
+
+    def __del__(self):
+        """Cleanup resources when the instance is being destroyed"""
+        self.close()
