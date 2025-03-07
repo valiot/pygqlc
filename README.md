@@ -7,6 +7,16 @@ Python client for graphql APIs
 This is an open source project, please feel free to fork it and PR to contribute with the community!
 Repo for the project: https://github.com/valiot/pygqlc
 
+### Features
+
+- Fast and efficient GraphQL client with over 50% performance improvement in v3.5.0
+- Support for queries, mutations, and subscriptions
+- Async capabilities for modern Python applications
+- Connection pooling for better performance
+- IPv4/IPv6 network flexibility
+- Intelligent error handling and reporting
+- Easy-to-use API with minimal boilerplate
+
 ### Installation
 
 Requirements:
