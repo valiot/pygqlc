@@ -9,7 +9,7 @@ Repo for the project: https://github.com/valiot/pygqlc
 
 ### Features
 
-- Fast and efficient GraphQL client with over 50% performance improvement in v3.5.0
+- Fast and efficient GraphQL client
 - Support for queries, mutations, and subscriptions
 - Async capabilities for modern Python applications
 - Connection pooling for better performance
