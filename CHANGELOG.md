@@ -10,6 +10,7 @@
   - Added proper resource cleanup with __del__ method
   - Reduced memory allocations with reusable constants and data structures
   - Added exponential backoff for connection retries
+  - Added orjson for much faster JSON serialization/deserialization
 
 ## [3.4.0] - 2025-03-05
 

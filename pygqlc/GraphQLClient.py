@@ -6,7 +6,6 @@ and all its methods.
 GQLResponse (type variable): [data[field(string)], errors[message(string),
  field?(string)]
 '''
-import json
 import traceback
 import time
 import threading
@@ -14,6 +13,7 @@ from functools import lru_cache
 import websocket
 import httpx
 import pydash as py_
+import orjson
 from pygqlc.helper_modules.Singleton import Singleton
 from tenacity import (
     retry,
@@ -93,7 +93,7 @@ def _data_flatten_cacheable(data_str, single_child):
     Returns:
         The flattened data structure
     """
-    data = json.loads(data_str)
+    data = orjson.loads(data_str)
     return _data_flatten_impl(data, single_child)
 
 
@@ -143,8 +143,9 @@ def data_flatten(data, single_child=False):
         return data
 
     try:
-        # For cacheable data structures, use the cached version
-        data_str = json.dumps(data, sort_keys=True)
+        # For cacheable data structures, use the cached version with orjson
+        # orjson doesn't have sort_keys parameter, but has OPT_SORT_KEYS option
+        data_str = orjson.dumps(data, option=orjson.OPT_SORT_KEYS).decode('utf-8')
         return _data_flatten_cacheable(data_str, single_child)
     except (TypeError, ValueError):
         # Fall back to direct implementation for non-serializable data
@@ -170,7 +171,7 @@ def safe_pop(data, index=0, default=None):
 
 
 # Prepare common JSON structures for reuse
-PING_JSON = json.dumps({'type': 'ping'})
+PING_JSON = orjson.dumps({'type': 'ping'}).decode('utf-8')
 EMPTY_DICT = {}
 EMPTY_LIST = []
 CONNECTION_ACK_TYPE = 'connection_ack'
@@ -503,7 +504,7 @@ class GraphQLClient(metaclass=Singleton):
             try:
                 # Set a smaller timeout for faster response
                 self._conn.settimeout(0.5)
-                message = json.loads(self._conn.recv())
+                message = orjson.loads(self._conn.recv())
                 # Reset timeout after successful receive
                 self._conn.settimeout(self.websocket_timeout)
             except (TimeoutError, websocket.WebSocketTimeoutException):
@@ -681,7 +682,7 @@ class GraphQLClient(metaclass=Singleton):
             'type': 'connection_init',
             'payload': headers
         }
-        self._conn.send(json.dumps(payload))
+        self._conn.send(orjson.dumps(payload).decode('utf-8'))
         self._waiting_connection_ack()
         self._conn.settimeout(self.websocket_timeout)
 
@@ -698,7 +699,7 @@ class GraphQLClient(metaclass=Singleton):
     def _waiting_connection_ack(self):
         self._conn.settimeout(self.ack_timeout)
         # set timeout to raise Exception websocket.WebSocketTimeoutException
-        message = json.loads(self._conn.recv())
+        message = orjson.loads(self._conn.recv())
         if message['type'] == CONNECTION_ACK_TYPE:
             print('Connection Ack with the server.')
 
@@ -735,11 +736,11 @@ class GraphQLClient(metaclass=Singleton):
 
     def _start(self, payload, _id):
         frame = {'id': _id, 'type': 'subscribe', 'payload': payload}
-        self._conn.send(json.dumps(frame))
+        self._conn.send(orjson.dumps(frame).decode('utf-8'))
 
     def _stop(self, _id):
         payload = {'id': _id, 'type': 'complete'}
-        self._conn.send(json.dumps(payload))
+        self._conn.send(orjson.dumps(payload).decode('utf-8'))
 
     def resetSubsConnection(self):
         """This function resets all subscriptions connections.
@@ -977,7 +978,7 @@ class GraphQLClient(metaclass=Singleton):
             )
 
         if response.status_code == 200:
-            return response.json()
+            return orjson.loads(response.content)
         else:
             error_message = "Query failed to run by returning code of " + \
                 f"{response.status_code}.\n{query}"
@@ -1088,7 +1089,7 @@ class GraphQLClient(metaclass=Singleton):
                 raise
 
         if response.status_code == 200:
-            return response.json()
+            return orjson.loads(response.content)
         else:
             error_message = "Query failed to run by returning code of " + \
                 f"{response.status_code}.\n{query}"
