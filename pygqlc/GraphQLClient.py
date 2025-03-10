@@ -14,6 +14,7 @@ import websocket
 import httpx
 import pydash as py_
 import orjson
+import logging
 from pygqlc.helper_modules.Singleton import Singleton
 from tenacity import (
     retry,
@@ -23,6 +24,8 @@ from tenacity import (
 )
 from .MutationBatch import MutationBatch
 
+# Set httpx logger to WARNING level to reduce HTTP request logs
+logging.getLogger('httpx').setLevel(logging.WARNING)
 
 GQL_WS_SUBPROTOCOL = "graphql-transport-ws"
 
