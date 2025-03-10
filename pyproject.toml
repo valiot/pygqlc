@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "pygqlc"
-version = "3.5.0"
+version = "3.5.1"
 description = "Python client for graphql APIs"
 authors = ["Baruc Almaguer <baruc.almaguer@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 pydash = "^8.0"
 tenacity = "^9.0"
 websocket-client = "^1.8"
@@ -20,11 +20,11 @@ pytest = "^8.3"
 pytest-asyncio = "^0.25.0"
 pylint = "^3.3"
 autopep8 = "^2.3"
-setuptools = "^75.8"
+setuptools = "^76.0"
 wheel = "^0.45"
 twine = "^6.1"
 pytest-cov = "^6.0"
-sphinx = "^8.1"
+sphinx = "^8.2"
 sphinx-rtd-theme = "^3.0"
 
 [[tool.poetry.source]]

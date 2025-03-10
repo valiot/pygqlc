@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.5.1] - 2025-03-10
+
+- [Fixed] Set httpx logger to WARNING level to reduce verbose HTTP request logs in applications using this library
+
 ## [3.5.0] - 2025-03-06
 
 - [Improved] Major performance optimizations (>50% faster)
