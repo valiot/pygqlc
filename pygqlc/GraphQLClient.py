@@ -214,7 +214,7 @@ class GraphQLClient(metaclass=Singleton):
           client = GraphQLClient()
           with client.enterEnvironment('dev') as gql:
               data, errors = gql.query('{lines(limit:2){id}}')
-              print(data, errors)
+              # Process data and errors here
           '''
         >>> setEnvironment:
           '''
@@ -224,7 +224,7 @@ class GraphQLClient(metaclass=Singleton):
               environment='dev',
               header={'Authorization': dev_token})
           data, errors = gql.query('{lines(limit:2){id}}')
-          print(data, errors)
+          # Process data and errors here
           '''
     """
 
@@ -492,7 +492,6 @@ class GraphQLClient(metaclass=Singleton):
             to_del = []
             for sub_id, sub in self.subs.items():
                 if (sub['kill'] or not sub['running']) and not sub['starting']:
-                    print(f'deleting halted subscription (id: {sub_id})')
                     # Don't block if thread is already dead
                     if sub['thread'].is_alive():
                         # Use timeout to avoid blocking indefinitely
@@ -530,7 +529,7 @@ class GraphQLClient(metaclass=Singleton):
                 if active_sub:
                     active_sub['queue'].append(message)
             elif message_type == CONNECTION_ACK_TYPE:
-                print('Connection Ack with the server.')
+                pass  # Connection Ack with the server
             elif message_type == PONG_TYPE:
                 pass
             else:
@@ -555,7 +554,6 @@ class GraphQLClient(metaclass=Singleton):
 
         # Then join all threads with timeout to avoid blocking indefinitely
         for sub_id, sub in self.subs.items():
-            print(f'killing halted subscription (id={sub_id})')
             if sub['thread'].is_alive():
                 sub['thread'].join(0.5)
 
@@ -610,7 +608,8 @@ class GraphQLClient(metaclass=Singleton):
                 print('Subscription message has payload Errors')
                 print(message)
             elif is_ws_connection_init_msg(message):
-                print('Subscription successfully initialized')
+                # Subscription successfully initialized
+                pass
             else:
                 # Process message more efficiently
                 gql_msg = self._clean_sub_message(_id, message)
@@ -673,8 +672,8 @@ class GraphQLClient(metaclass=Singleton):
 
     def _on_message(self, message):
         '''Dummy callback for subscription'''
-        print('message received on subscription:')
-        print(message)
+        # Message handling happens elsewhere - no need to print here
+        pass
 
     def _conn_init(self):
         env = self.environments.get(self.environment, None)
@@ -702,7 +701,7 @@ class GraphQLClient(metaclass=Singleton):
         # set timeout to raise Exception websocket.WebSocketTimeoutException
         message = orjson.loads(self._conn.recv())
         if message['type'] == CONNECTION_ACK_TYPE:
-            print('Connection Ack with the server.')
+            pass  # Connection Ack with the server
 
     def _ping_pong(self):
         self.pingTimer = time.time()
@@ -719,9 +718,7 @@ class GraphQLClient(metaclass=Singleton):
                 try:
                     self._conn.send(PING_JSON)
                     ping_count += 1
-                    # Log only every 10 pings to reduce noise
-                    if ping_count % 10 == 0:
-                        print(f"Sent ping #{ping_count}")
+                    # No need to log normal ping operations
                 except Exception as e:
                     if not self.closing:
                         print('error trying to send ping, WSS Pipe is broken')

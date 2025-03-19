@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.5.2] - 2025-03-19
+
+- [Fixed] Reduce print statements in the library
+
 ## [3.5.1] - 2025-03-10
 
 - [Fixed] Set httpx logger to WARNING level to reduce verbose HTTP request logs in applications using this library
@@ -11,7 +15,7 @@
   - Optimized thread management and reduced sleep times in polling loops
   - Implemented connection pooling with thread-local HTTP clients
   - Improved async code with better connection reuse
-  - Added proper resource cleanup with __del__ method
+  - Added proper resource cleanup with **del** method
   - Reduced memory allocations with reusable constants and data structures
   - Added exponential backoff for connection retries
   - Added orjson for much faster JSON serialization/deserialization
