@@ -16,6 +16,7 @@ Repo for the project: https://github.com/valiot/pygqlc
 - IPv4/IPv6 network flexibility
 - Intelligent error handling and reporting
 - Easy-to-use API with minimal boilerplate
+- Optional structured logging with valiotlogging
 
 ### Installation
 
@@ -37,6 +38,28 @@ $ >> print(pygqlc.name)
 ```
 
 If you get "pygqlc" printed in the python repl, the installation succeded!
+
+#### Optional: Enhanced Logging with valiotlogging
+
+If you're using this library in a Valiot project, you can install it with the valiotlogging dependency for enhanced structured logging:
+
+```
+pip install pygqlc[valiotlogging]
+```
+
+Or in your pyproject.toml:
+
+```toml
+[tool.poetry.dependencies]
+pygqlc = {version = "^3.5.3", extras = ["valiotlogging"]}
+
+[[tool.poetry.source]]
+name = "valiot"
+url = "https://pypi.valiot.io/"
+priority = "supplemental"
+```
+
+The library will automatically use valiotlogging if available, and will fall back to standard logging if not.
 
 ### Usage
 
@@ -257,6 +280,24 @@ gql.addEnvironment(
 
 This can resolve connectivity issues in networks with suboptimal IPv6 configurations.
 
+### Custom Logging
+
+You can customize the logging behavior of pygqlc by using the `set_logger` function:
+
+```python
+from pygqlc.logging import set_logger, LogLevel
+
+# Example: Create a custom logger that writes to a file
+def my_custom_logger(level, message, extra=None):
+    with open('pygqlc.log', 'a') as f:
+        f.write(f"[{level.value}] {message}\n")
+
+# Set the custom logger
+set_logger(my_custom_logger)
+```
+
+The default logger will use valiotlogging if available, otherwise it will use a simple print-based logger.
+
 ### for mantainers:
 
 #### Initial configuration
@@ -355,6 +396,7 @@ if __name__ == "__main__":
 ```
 
 The async methods are:
+
 - `async_execute`: Low-level method to execute GraphQL operations
 - `async_query`: For GraphQL queries
 - `async_query_one`: For queries that return a single item

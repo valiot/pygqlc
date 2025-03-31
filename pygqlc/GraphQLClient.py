@@ -16,6 +16,7 @@ import pydash as py_
 import orjson
 import logging
 from pygqlc.helper_modules.Singleton import Singleton
+from pygqlc.logging import log, LogLevel
 from tenacity import (
     retry,
     retry_if_result,
@@ -417,7 +418,7 @@ class GraphQLClient(metaclass=Singleton):
         # ! initialize websocket only once
         if not self._conn:
             if not self._new_conn():
-                print('Error creating WSS connection for subscription')
+                log(LogLevel.ERROR, 'Error creating WSS connection for subscription')
                 return None
 
         _cb = callback if callback is not None else self._on_message
@@ -446,21 +447,20 @@ class GraphQLClient(metaclass=Singleton):
     def _unsubscribe(self, _id):
         sub = self.subs.get(_id)
         if not sub:
-            print('Subscription already cleared')
+            log(LogLevel.INFO, 'Subscription already cleared')
             return
         self.unsubscribing = True
         sub['kill'] = True
         try:
             self._stop(_id)
         except BrokenPipeError as e:
-            print('WSS Pipe broken, nothing to stop')
-            print(f'original message: {e}')
+            log(LogLevel.WARNING, 'WSS Pipe broken, nothing to stop')
         sub['thread'].join()
         sub['running'] = False
         self.unsubscribing = False
 
     def _sub_routing_loop(self):
-        print('first subscription, starting routing loop')
+        log(LogLevel.INFO, 'first subscription, starting routing loop')
         last_reconnect_attempt = 0
         reconnect_delay = 1.0
 
@@ -469,13 +469,13 @@ class GraphQLClient(metaclass=Singleton):
                 # Rate limit reconnection attempts
                 current_time = time.time()
                 if current_time - last_reconnect_attempt >= reconnect_delay:
-                    print('Connection halted, attempting reconnection...')
+                    log(LogLevel.INFO, 'Connection halted, attempting reconnection...')
                     if self._new_conn():
                         self.wss_conn_halted = False
-                        print(
+                        log(LogLevel.INFO,
                             'WSS Reconnection succeeded, attempting resubscription to lost subs')
                         self._resubscribe_all()
-                        print('finished resubscriptions')
+                        log(LogLevel.INFO, 'finished resubscriptions')
                         reconnect_delay = 1.0  # Reset delay on success
                     else:
                         # Use exponential backoff for reconnection attempts (up to 5 seconds)
@@ -513,8 +513,7 @@ class GraphQLClient(metaclass=Singleton):
                 continue
             except Exception as e:
                 if not self.closing:
-                    print(f'Some error trying to receive WSS')
-                    print(f'original message: {e}')
+                    log(LogLevel.ERROR, 'Some error trying to receive WSS')
                     self.wss_conn_halted = True
                 continue
 
@@ -533,7 +532,7 @@ class GraphQLClient(metaclass=Singleton):
             elif message_type == PONG_TYPE:
                 pass
             else:
-                print(f'unknown msg type: {message}')
+                log(LogLevel.WARNING, f'unknown msg type: {message}')
 
             # Use non-blocking sleep
             time.sleep(self.poll_interval)
@@ -575,7 +574,8 @@ class GraphQLClient(metaclass=Singleton):
         self.subs[_id].update({'running': True, 'starting': False})
         while self.subs[_id]['running']:
             if self.subs[_id]['kill']:
-                print(f'stopping subscription id={_id} on Unsubscribe')
+                log(LogLevel.INFO,
+                    f'stopping subscription id={_id} on Unsubscribe')
                 break
 
             # Get message without copying the queue
@@ -591,13 +591,15 @@ class GraphQLClient(metaclass=Singleton):
             elif message_type == ERROR_TYPE:
                 if _ecb:
                     _ecb(message)
-                print(f'stopping subscription id={_id} on {message_type}')
+                log(LogLevel.WARNING,
+                    f'stopping subscription id={_id} on {message_type}')
                 break
             elif message_type == COMPLETE_TYPE:
-                print(f'stopping subscription id={_id} on {message_type}')
+                log(LogLevel.INFO,
+                    f'stopping subscription id={_id} on {message_type}')
                 break
             else:
-                print(f'unknown msg type: {message}')
+                log(LogLevel.WARNING, f'unknown msg type: {message}')
                 continue
 
             # Payload handling
@@ -605,8 +607,8 @@ class GraphQLClient(metaclass=Singleton):
                 if _ecb:
                     _ecb(message)
                     continue
-                print('Subscription message has payload Errors')
-                print(message)
+                log(LogLevel.ERROR, 'Subscription message has payload Errors')
+                log(LogLevel.ERROR, f'{message}')
             elif is_ws_connection_init_msg(message):
                 # Subscription successfully initialized
                 pass
@@ -617,19 +619,21 @@ class GraphQLClient(metaclass=Singleton):
                     _cb(gql_msg)  # execute callback function
                     # Increment counter without locking
                     self.subs[_id]['runs'] += 1
-                except Exception as e:
-                    print(f'Error on subscription callback: {e}')
+                except Exception as _e:
+                    log(LogLevel.ERROR, f'Error on subscription callback')
                     sub_query = self.subs[_id].get('query')
                     sub_variables = self.subs[_id].get('variables')
                     if sub_query:
-                        print(f'subscription document: \n\t{sub_query}')
+                        log(LogLevel.ERROR,
+                            f'subscription document: \n\t{sub_query}')
                     if sub_variables:
-                        print(f'subscription variables: \n\t{sub_variables}')
-                    print(traceback.format_exc())
+                        log(LogLevel.ERROR,
+                            f'subscription variables: \n\t{sub_variables}')
+                    log(LogLevel.ERROR, traceback.format_exc())
 
         # Subscription stopped, update state atomically
         self.subs[_id].update({'running': False, 'kill': True})
-        print(f'Subscription id={_id} stopped')
+        log(LogLevel.INFO, f'Subscription id={_id} stopped')
 
     def _clean_sub_message(self, _id, message):
         data = py_.get(message, 'payload', {})
@@ -644,8 +648,7 @@ class GraphQLClient(metaclass=Singleton):
             self._conn_init()
             return True
         except Exception as e:
-            print(f'Failed connecting to {self.ws_url}')
-            print(f'original message: {e}')
+            log(LogLevel.ERROR, f'Failed connecting to {self.ws_url}')
             return False
 
     def close(self):
@@ -655,7 +658,7 @@ class GraphQLClient(metaclass=Singleton):
         # ! ask subscription message router to stop
         self.closing = True
         if not self.sub_router_thread:
-            print('connection not stablished, nothing to close')
+            log(LogLevel.INFO, 'connection not stablished, nothing to close')
             self.closing = False
             return
         for sub in self.subs.values():
@@ -721,8 +724,8 @@ class GraphQLClient(metaclass=Singleton):
                     # No need to log normal ping operations
                 except Exception as e:
                     if not self.closing:
-                        print('error trying to send ping, WSS Pipe is broken')
-                        print(f'original message: {e}')
+                        log(LogLevel.ERROR,
+                            'error trying to send ping, WSS Pipe is broken')
                         self.wss_conn_halted = True
 
     def _registerSub(self, _id=None):
@@ -747,19 +750,20 @@ class GraphQLClient(metaclass=Singleton):
             (boolean): Returns if the reconnection has been possible.
         """
         if not self.sub_router_thread:
-            print('connection not stablished, nothing to reset')
+            log(LogLevel.INFO, 'connection not stablished, nothing to reset')
             return False
         if self.sub_router_thread.is_alive():  # check that _sub_routing_loop() is running
             self._conn.close()  # forces connection halted (wss_conn_halted)
             return True
         # in case for some reason _sub_routing_loop() is not running
         if self._new_conn():
-            print('WSS Reconnection succeeded, attempting resubscription to lost subs')
+            log(LogLevel.INFO,
+                'WSS Reconnection succeeded, attempting resubscription to lost subs')
             self._resubscribe_all()
-            print('finished resubscriptions')
+            log(LogLevel.INFO, 'finished resubscriptions')
             return True
         else:
-            print('Reconnection has not been possible')
+            log(LogLevel.ERROR, 'Reconnection has not been possible')
             return False
 
     # * END SUBSCRIPTION functions ******************************
@@ -1210,7 +1214,8 @@ class GraphQLClient(metaclass=Singleton):
                         await self._async_client.aclose()
             except Exception as e:  # pylint: disable=broad-except
                 # If closing fails, log but continue
-                print(f"Warning: Error closing async client: {str(e)}")
+                log(LogLevel.WARNING,
+                    f"Warning: Error closing async client: {str(e)}")
             finally:
                 # Always set to None to allow garbage collection and recreation
                 self._async_client = None

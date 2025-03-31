@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [3.5.3] - 2025-03-20
+
+- [Added] Support for valiotlogging via optional dependency
+- [Improved] Replaced print statements with structured logging
+- [Added] Custom logger functionality
+- [Improved] Added automatic traceback printing for ERROR level logs
+
 ## [3.5.2] - 2025-03-19
 
 - [Fixed] Reduce print statements in the library
