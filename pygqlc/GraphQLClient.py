@@ -447,7 +447,7 @@ class GraphQLClient(metaclass=Singleton):
     def _unsubscribe(self, _id):
         sub = self.subs.get(_id)
         if not sub:
-            log(LogLevel.INFO, 'Subscription already cleared')
+            log(LogLevel.WARNING, 'Subscription already cleared')
             return
         self.unsubscribing = True
         sub['kill'] = True
@@ -460,7 +460,7 @@ class GraphQLClient(metaclass=Singleton):
         self.unsubscribing = False
 
     def _sub_routing_loop(self):
-        log(LogLevel.INFO, 'first subscription, starting routing loop')
+        log(LogLevel.SUCCESS, 'first subscription, starting routing loop')
         last_reconnect_attempt = 0
         reconnect_delay = 1.0
 
@@ -469,10 +469,11 @@ class GraphQLClient(metaclass=Singleton):
                 # Rate limit reconnection attempts
                 current_time = time.time()
                 if current_time - last_reconnect_attempt >= reconnect_delay:
-                    log(LogLevel.INFO, 'Connection halted, attempting reconnection...')
+                    log(LogLevel.WARNING,
+                        'Connection halted, attempting reconnection...')
                     if self._new_conn():
                         self.wss_conn_halted = False
-                        log(LogLevel.INFO,
+                        log(LogLevel.SUCCESS,
                             'WSS Reconnection succeeded, attempting resubscription to lost subs')
                         self._resubscribe_all()
                         log(LogLevel.INFO, 'finished resubscriptions')
@@ -968,7 +969,7 @@ class GraphQLClient(metaclass=Singleton):
                 headers=headers,
                 timeout=float(env.get('post_timeout', 60))
             )
-        except Exception as e:
+        except Exception as _e:
             # If connection fails, create a new client and retry
             self._thread_local.client = httpx.Client(**self.client_params)
             client = self._thread_local.client
