@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.5.4] - 2025-05-02
+
+- [Dependencies]: Upgrade the `valiotlogging` to accept versions higher for ValiotLogging
+
 ## [3.5.3] - 2025-03-20
 
 - [Added] Support for valiotlogging via optional dependency
