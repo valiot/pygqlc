@@ -1681,4 +1681,4 @@ valiotlogging = ["valiotlogging"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "bf982e83236c78aabc80901a0e2b8e26854bd92c63382d2f538c2e451dda78d0"
+content-hash = "113ca703a827ecfc028a7ea6b773d2f39a54a5d622a6100e0c2466691a6cb273"
