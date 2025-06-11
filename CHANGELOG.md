@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.5.5] - 2025-06-11
+
+- [Dependencies]: Bump valiotlogging to 1.0 and limit below 2.0
+
 ## [3.5.4] - 2025-05-02
 
 - [Dependencies]: Upgrade the `valiotlogging` to accept versions higher for ValiotLogging
