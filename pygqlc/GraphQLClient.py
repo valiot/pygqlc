@@ -357,10 +357,12 @@ class GraphQLClient(metaclass=Singleton):
         """
         return self.query(query, variables, flatten=True, single_child=True)
 
-    def _get_messages(self, data: dict) -> list[str]:
+    def _get_messages(self, data: dict | None) -> list[dict]:
         """Gets the messages in a mutation. It normally simply takes the
         'messages' key, but if it is a mutation with labels it joins all
         """
+        if not data:
+            return []
         if "messages" in data:
             return data["messages"] or []
         messages = []
