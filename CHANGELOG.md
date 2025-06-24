@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.6.0] - 2025-06-24
+
+- [Fixed] Improved message extraction for labeled mutations - mutations with multiple labeled operations now properly extract error messages from nested response structures
+
 ## [3.5.5] - 2025-06-11
 
 - [Dependencies]: Bump valiotlogging to 1.0 and limit below 2.0

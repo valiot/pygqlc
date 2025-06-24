@@ -357,6 +357,20 @@ class GraphQLClient(metaclass=Singleton):
         """
         return self.query(query, variables, flatten=True, single_child=True)
 
+    def _get_messages(self, data: dict | None) -> list[dict]:
+        """Gets the messages in a mutation. It normally simply takes the
+        'messages' key, but if it is a mutation with labels it joins all
+        """
+        if not data:
+            return []
+        if "messages" in data:
+            return data["messages"] or []
+        messages = []
+        for datum in data.values():
+            if isinstance(datum, dict):
+                messages.extend(datum.get("messages") or [])
+        return messages
+
     # * Mutation high level implementation
     def mutate(self, mutation: str, variables: dict | None = None, flatten: bool = True) -> tuple:
         """This function makes a mutation transaction to the actual environment.
@@ -385,7 +399,7 @@ class GraphQLClient(metaclass=Singleton):
                 data = response.get('data', None)
                 if flatten and data:
                     data = data_flatten(data)
-                    data_messages = data.get('messages', []) if data else []
+                    data_messages = self._get_messages(data)
                     if data_messages:
                         errors.extend(data_messages)
         return data, errors
@@ -1183,8 +1197,7 @@ class GraphQLClient(metaclass=Singleton):
                 data = response.get('data', None)
                 if flatten and data:
                     data = data_flatten(data)
-                    data_messages = data.get(
-                        'messages', []) if data else []
+                    data_messages = self._get_messages(data)
                     if data_messages:
                         errors.extend(data_messages)
         return data, errors
