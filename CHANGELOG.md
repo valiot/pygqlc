@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.6.1] - 2026-04-15
+
+- [Fixed] `_get_messages` now returns `[]` when `data` is not a dict (e.g. a list), preventing `AttributeError: 'list' object has no attribute 'values'` when `data_flatten` returns a list for single-key mutation responses
+
 ## [3.6.0] - 2025-06-24
 
 - [Fixed] Improved message extraction for labeled mutations - mutations with multiple labeled operations now properly extract error messages from nested response structures

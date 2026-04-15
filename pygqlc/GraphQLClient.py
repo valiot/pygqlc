@@ -361,7 +361,7 @@ class GraphQLClient(metaclass=Singleton):
         """Gets the messages in a mutation. It normally simply takes the
         'messages' key, but if it is a mutation with labels it joins all
         """
-        if not data:
+        if not isinstance(data, dict):
             return []
         if "messages" in data:
             return data["messages"] or []
