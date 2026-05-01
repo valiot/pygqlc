@@ -4,7 +4,7 @@ This module has the general purpose of defining the GraphQLClient class
 and all its methods.
 
 GQLResponse (type variable): [data[field(string)], errors[message(string),
- field?(string)]
+ field?(string)]]
 '''
 import traceback
 import time
@@ -737,6 +737,11 @@ class GraphQLClient(metaclass=Singleton):
                     self._conn.send(PING_JSON)
                     ping_count += 1
                     # No need to log normal ping operations
+                except (BrokenPipeError, OSError):
+                    if not self.closing:
+                        log(LogLevel.WARNING,
+                            'WSS Pipe broken, nothing to ping')
+                        self.wss_conn_halted = True
                 except Exception as e:
                     if not self.closing:
                         log(LogLevel.ERROR,
