@@ -3,6 +3,7 @@
 ## [3.6.2] - 2026-05-04
 
 - [Fixed] `GQLResponseException` now includes the server's response body in the error message and as a `response_body` attribute, making it possible to diagnose authentication errors (e.g. 401) without extra debugging
+- [Changed] Applies to both sync and async execution paths
 
 ## [3.6.1] - 2026-04-15
 
