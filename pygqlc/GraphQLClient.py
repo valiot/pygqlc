@@ -40,6 +40,7 @@ class GQLResponseException(Exception):
         status_code (int): HTTP status code of the response
         query (str): GraphQL query or mutation that caused the error
         variables (dict): Variables used in the query/mutation
+        response_body (str): Raw response body from the server
     """
 
     def __init__(
@@ -48,13 +49,14 @@ class GQLResponseException(Exception):
         status_code: int,
         query: str,
         variables: dict | None = None,
+        response_body: str = '',
     ) -> None:
-        # Initialize the normal exception with the message
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.query = query
         self.variables = variables
+        self.response_body = response_body
 
 
 def is_ws_payloadErrors_msg(message):
@@ -997,13 +999,17 @@ class GraphQLClient(metaclass=Singleton):
         if response.status_code == 200:
             return orjson.loads(response.content)
         else:
-            error_message = "Query failed to run by returning code of " + \
-                f"{response.status_code}.\n{query}"
+            body = response.text
+            error_message = (
+                f"Query failed to run by returning code of "
+                f"{response.status_code}.\n{body}\n{query}"
+            )
             raise GQLResponseException(
                 message=error_message,
                 status_code=response.status_code,
                 query=query,
-                variables=variables
+                variables=variables,
+                response_body=body,
             )
 
     # * ASYNC METHODS ----------------------------------
@@ -1108,13 +1114,17 @@ class GraphQLClient(metaclass=Singleton):
         if response.status_code == 200:
             return orjson.loads(response.content)
         else:
-            error_message = "Query failed to run by returning code of " + \
-                f"{response.status_code}.\n{query}"
+            body = response.text
+            error_message = (
+                f"Query failed to run by returning code of "
+                f"{response.status_code}.\n{body}\n{query}"
+            )
             raise GQLResponseException(
                 message=error_message,
                 status_code=response.status_code,
                 query=query,
-                variables=variables
+                variables=variables,
+                response_body=body,
             )
 
     async def async_query(

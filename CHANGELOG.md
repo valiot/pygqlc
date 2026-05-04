@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.6.2] - 2026-05-04
+
+- [Fixed] `GQLResponseException` now includes the server's response body in the error message and as a `response_body` attribute, making it possible to diagnose authentication errors (e.g. 401) without extra debugging
+
 ## [3.6.1] - 2026-04-15
 
 - [Fixed] `_get_messages` now returns `[]` when `data` is not a dict (e.g. a list), preventing `AttributeError: 'list' object has no attribute 'values'` when `data_flatten` returns a list for single-key mutation responses
