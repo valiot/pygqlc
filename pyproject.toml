@@ -1,49 +1,55 @@
-[tool.poetry]
+[project]
 name = "pygqlc"
-version = "3.6.2"
 description = "Python client for graphql APIs"
-authors = ["Baruc Almaguer <baruc.almaguer@gmail.com>"]
 readme = "README.md"
+authors = [
+    {name = "Baruc Almaguer", email = "baruc.almaguer@gmail.com"},
+]
+requires-python = ">=3.11"
+dynamic = ["version"]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-pydash = "^8.0"
-tenacity = "^9.0"
-websocket-client = "^1.8"
-certifi = "^2025.1.31"
-httpx = { extras = ["http2"], version = "^0.28.1" }
-orjson = "^3.10.0"
-valiotlogging = { version = ">=0.1.0,<2.0", optional = true }
+dependencies = [
+    "pydash>=8.0",
+    "tenacity>=9.0",
+    "websocket-client>=1.8",
+    "httpx[http2]>=0.28",
+    "orjson>=3.10",
+]
 
-[tool.poetry.extras]
-valiotlogging = ["valiotlogging"]
+[project.optional-dependencies]
+valiotlogging = ["valiotlogging>=0.1.0,<2.0"]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3"
-pytest-asyncio = "^0.25.0"
-pylint = "^3.3"
-autopep8 = "^2.3"
-setuptools = "^76.0"
-wheel = "^0.45"
-twine = "^6.1"
-pytest-cov = "^6.0"
-sphinx = "^8.2"
-sphinx-rtd-theme = "^3.0"
-
-[[tool.poetry.source]]
-name = "PyPI"
-priority = "primary"
-
-[[tool.poetry.source]]
-name = "valiot"
-url = "https://pypi.valiot.io/"
-priority = "supplemental"
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6.0",
+    "pylint>=3.3",
+    "autopep8>=2.3",
+    "setuptools>=76",
+    "wheel>=0.45",
+    "twine>=6.1",
+    "sphinx>=8.2",
+    "sphinx-rtd-theme>=3.0",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.poetry_bumpversion.file."pygqlc/__version__.py"]
+[tool.hatch.version]
+path = "pygqlc/__version__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pygqlc"]
+
+[[tool.uv.index]]
+name = "valiot"
+url = "https://pypi.valiot.io/"
+explicit = true
+
+[tool.uv.sources]
+valiotlogging = { index = "valiot" }
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"

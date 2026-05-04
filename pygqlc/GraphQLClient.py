@@ -677,6 +677,7 @@ class GraphQLClient(metaclass=Singleton):
         if not self.sub_router_thread:
             log(LogLevel.INFO, 'connection not stablished, nothing to close')
             self.closing = False
+            self._close()
             return
         for sub in self.subs.values():
             sub['unsub']()
@@ -689,6 +690,7 @@ class GraphQLClient(metaclass=Singleton):
         self.sub_counter = 0
         self.subs = {}
         self.closing = False
+        self._close()
 
     def _on_message(self, message):
         '''Dummy callback for subscription'''
@@ -943,9 +945,11 @@ class GraphQLClient(metaclass=Singleton):
     # * LOW LEVEL METHODS ----------------------------------
     def _get_http_client(self):
         """Get a thread-local HTTP client to improve performance with connection pooling"""
-        if not hasattr(self._thread_local, 'client'):
-            self._thread_local.client = httpx.Client(**self.client_params)
-        return self._thread_local.client
+        client = getattr(self._thread_local, 'client', None)
+        if client is None or client.is_closed:
+            client = httpx.Client(**self.client_params)
+            self._thread_local.client = client
+        return client
 
     def execute(self, query: str, variables: dict | None = None) -> dict:
         """This function executes the intructions of a query or mutation.
