@@ -13,16 +13,16 @@ jobs:
 
     steps:
       # Validate every action
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Setting up Python 3.12 & env vars
-        uses: actions/setup-python@v5
+      - name: Setting up Python 3.13 & env vars
+        uses: actions/setup-python@v6
         with:
-          python-version: 3.12
+          python-version: "3.13"
 
       # Building autodocumentation
       - name: Building auto documentation
-        uses: ammaraskar/sphinx-action@master
+        uses: ammaraskar/sphinx-action@8.2.3
         with:
           docs-folder: "docs/"
 
@@ -37,7 +37,7 @@ jobs:
           git commit -m "Update documentation"
 
       - name: Push Changes
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@v1
         with:
           branch: Documentation
           directory: docs
