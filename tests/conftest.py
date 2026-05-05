@@ -40,7 +40,12 @@ def gql():
 
     post_timeout_str = (os.environ.get('POST_TIMEOUT') or '10')
 
+    import httpx
+
+    no_keepalive = httpx.Limits(max_keepalive_connections=0)
     gql = GraphQLClient()
+    gql.client_params['limits'] = no_keepalive
+    gql.async_client_params['limits'] = no_keepalive
     gql.addEnvironment(
         'dev',
         url=os.environ.get('API'),

@@ -5,28 +5,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  PYTHON_VERSION: 3.12
-
 jobs:
   check_outdated:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install Poetry
-        run: pip install poetry
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: "poetry"
-      - name: Check Outdated Dependencies
+        uses: actions/checkout@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Check outdated top-level dependencies
         run: |
-          # Save the output of `poetry show --outdated --top-level` to a variable
-          OUTDATED=$(poetry show --outdated --top-level)
-
-          # Check if any outdated packages are found
+          OUTDATED=$(uv tree --depth 1 --outdated --quiet | grep -E '\(latest:' || true)
           if [ -n "$OUTDATED" ]; then
             echo "Outdated packages found:"
             echo "$OUTDATED"

@@ -1,5 +1,12 @@
 import pytest
+import pytest_asyncio
 from . import queries
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _close_async_client(gql):
+    yield
+    await gql.async_cleanup()
 
 
 @pytest.mark.asyncio
