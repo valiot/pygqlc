@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [3.7.0] - 2026-05-04
+
+- [Changed] Migrated build/dependency tooling from Poetry to **uv** with the `hatchling` build backend. `pyproject.toml` rewritten to PEP 621; version is now read dynamically from `pygqlc/__version__.py`
+- [Changed] All dependencies upgraded to their latest compatible versions; lockfile is now `uv.lock`
+- [Added] `mise.toml` pinning Python 3.13 + uv for the project
+- [Fixed] `GraphQLClient.close()` now closes the thread-local `httpx.Client` (previously only subscriptions were torn down — HTTP clients leaked until garbage collection)
+- [Fixed] `_get_http_client()` recreates the cached client when it has been closed, so calling `close()` is no longer a one-way door
+- [Fixed] Eliminated `ResourceWarning: unclosed socket` and unclosed-transport warnings in the test suite
+- [Changed] CI workflows ported from Poetry to uv; all `uses:` actions bumped to current versions
+
 ## [3.6.2] - 2026-05-04
 
 - [Fixed] `GQLResponseException` now includes the server's response body in the error message and as a `response_body` attribute, making it possible to diagnose authentication errors (e.g. 401) without extra debugging
