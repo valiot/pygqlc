@@ -475,7 +475,6 @@ class GraphQLClient(metaclass=Singleton):
             return
         self.unsubscribing = True
         sub['kill'] = True
-        sub['remove'] = True
         try:
             self._stop(_id)
         except BrokenPipeError as e:
@@ -517,7 +516,7 @@ class GraphQLClient(metaclass=Singleton):
             # Process terminated subscriptions
             to_del = []
             for sub_id, sub in self.subs.items():
-                if sub.get('remove') and not sub['starting']:
+                if (sub['kill'] or not sub['running']) and not sub['starting']:
                     # Don't block if thread is already dead
                     if sub['thread'].is_alive():
                         # Use timeout to avoid blocking indefinitely
@@ -578,7 +577,7 @@ class GraphQLClient(metaclass=Singleton):
             'callback': sub.get('callback'),
             'on_error_callback': sub.get('on_error_callback'),
             'flatten': sub.get('flatten'),
-        } for sub_id, sub in self.subs.items() if not sub.get('remove')}
+        } for sub_id, sub in self.subs.items()}
 
         # First, signal all threads to stop
         for sub in self.subs.values():
@@ -626,7 +625,6 @@ class GraphQLClient(metaclass=Singleton):
                     _ecb(message)
                 log(LogLevel.WARNING,
                     f'stopping subscription id={_id} on {message_type}')
-                self.subs[_id]['remove'] = True
                 break
             elif message_type == COMPLETE_TYPE:
                 log(LogLevel.INFO,
@@ -768,7 +766,7 @@ class GraphQLClient(metaclass=Singleton):
         if not _id:
             self.sub_counter += 1
             _id = str(self.sub_counter)
-        self.subs[_id] = {'running': False, 'kill': False, 'starting': True, 'remove': False}
+        self.subs[_id] = {'running': False, 'kill': False, 'starting': True}
         return _id
 
     def _start(self, payload, _id):
