@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [3.7.1] - 2026-05-28
+
+- [Fixed] Non-dict payloads after `orjson.loads` (e.g. a server-emitted `null` or array) no longer crash `_sub_routing_loop` with an unhandled `AttributeError` at `message.get('type')` and kill the router thread. A `not isinstance(message, dict)` guard now sets `wss_conn_halted` and triggers the existing reconnect path. (OPS-3485)
+- [Changed] Transient websocket errors during `recv` (`ConnectionResetError`, `BrokenPipeError`, `ConnectionAbortedError`, `WebSocketConnectionClosedException`) are now classified at WARNING level rather than ERROR with a full traceback. Functional behavior (catch, set `wss_conn_halted=True`, reconnect) is unchanged; only the log noise. Exception classes hoisted into a module-level `TRANSIENT_WS_ERRORS` constant for readability.
+- [Changed] Replaced the prior subscription-loop test with deterministic regression tests covering non-dict payload, transient error log levels, generic error log level, and valid message routing, with negative-control verification that each test fails against the pre-fix code. Tests run in <100 ms with no real sockets or sleeps.
+- [Changed] CI no longer installs the private `valiotlogging` extra (`uv sync --frozen` instead of `--all-extras`), so public/fork CI runs against the graceful-fallback path. Direct dependency refreshes (orjson 3.11.8 → 3.11.9, dev tooling) + `uv.lock` aligned with Palantir baseline.
+
 ## [3.7.0] - 2026-05-04
 
 - [Changed] Migrated build/dependency tooling from Poetry to **uv** with the `hatchling` build backend. `pyproject.toml` rewritten to PEP 621; version is now read dynamically from `pygqlc/__version__.py`
