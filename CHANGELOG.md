@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.7.2] - 2026-05-28
+
+- [Fixed] `ConnectionResetError` (and other transient WS errors) during `_ping_pong` send path no longer logged as ERROR+traceback; now WARNING (matching `_sub_routing_loop` recv handling) and sets `wss_conn_halted` to reconnect. Uses shared `TRANSIENT_WS_ERRORS`. (OPS-3500)
+- [Changed] `uv.lock` refreshed (valiotlogging 1.0.0→1.0.1 for py>=3.12); all sources ruff-formatted to satisfy baseline `ruff format --check`; bandit scan run (pre-existing B104 only).
+
 ## [3.7.1] - 2026-05-28
 
 - [Fixed] Non-dict payloads after `orjson.loads` (e.g. a server-emitted `null` or array) no longer crash `_sub_routing_loop` with an unhandled `AttributeError` at `message.get('type')` and kill the router thread. A `not isinstance(message, dict)` guard now sets `wss_conn_halted` and triggers the existing reconnect path. (OPS-3485)
