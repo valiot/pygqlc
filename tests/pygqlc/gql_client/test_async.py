@@ -12,22 +12,19 @@ async def _close_async_client(gql):
 @pytest.mark.asyncio
 async def test_async_query_no_errors(gql):
     data, errors = await gql.async_query(queries.get_authors, flatten=True)
-    assert errors == [], \
-        'query must NOT contain errors'
+    assert errors == [], "query must NOT contain errors"
 
 
 @pytest.mark.asyncio
 async def test_async_query_has_errors(gql):
     data, errors = await gql.async_query(queries.bad_get_authors)
-    assert len(errors) > 0, \
-        'query MUST contain errors'
+    assert len(errors) > 0, "query MUST contain errors"
 
 
 @pytest.mark.asyncio
 async def test_async_query_one(gql):
     data, errors = await gql.async_query_one(queries.get_authors)
-    assert errors == [], \
-        'query must NOT contain errors'
+    assert errors == [], "query must NOT contain errors"
 
 
 @pytest.mark.asyncio

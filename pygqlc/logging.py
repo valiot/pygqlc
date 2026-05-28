@@ -5,6 +5,7 @@ This module provides a unified logging interface that works with or without
 the valiotlogging package. If valiotlogging is available, it will be used.
 Otherwise, a simple fallback implementation using print statements is provided.
 """
+
 from enum import Enum
 from typing import Dict, Optional, Any, Callable
 import logging
@@ -14,21 +15,23 @@ import traceback
 # Try to import valiotlogging, but don't fail if it's not available
 try:
     from valiotlogging import log as valiot_log, LogLevel as ValiotLogLevel
+
     HAS_VALIOT_LOGGING = True
 except ImportError:
     HAS_VALIOT_LOGGING = False
 
 # Configure basic Python logging to avoid excessive logs
-logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 class LogLevel(Enum):
     """Log levels enum that mirrors valiotlogging.LogLevel"""
-    DEBUG = 'DEBUG'
-    ERROR = 'ERROR'
-    INFO = 'INFO'
-    WARNING = 'WARNING'
-    SUCCESS = 'SUCCESS'
+
+    DEBUG = "DEBUG"
+    ERROR = "ERROR"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    SUCCESS = "SUCCESS"
 
 
 # Map our LogLevel to valiotlogging.LogLevel if available
@@ -42,7 +45,9 @@ if HAS_VALIOT_LOGGING:
     }
 
 
-def _fallback_log(level: LogLevel, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+def _fallback_log(
+    level: LogLevel, message: str, extra: Optional[Dict[str, Any]] = None
+) -> None:
     """Simple fallback logging implementation using print statements."""
     level_str = level.value
     if extra:
@@ -57,6 +62,7 @@ def _fallback_log(level: LogLevel, message: str, extra: Optional[Dict[str, Any]]
 
 # Define valiotlogging wrapper if available
 if HAS_VALIOT_LOGGING:
+
     def _valiot_wrapper(
         level: LogLevel,
         message: str,
@@ -73,8 +79,7 @@ else:
 
 
 # A reference to the current log function, can be changed by set_logger
-_current_log_fn: Callable[[LogLevel, str,
-                           Optional[Dict[str, Any]]], None] = _log_impl
+_current_log_fn: Callable[[LogLevel, str, Optional[Dict[str, Any]]], None] = _log_impl
 
 
 def log(level: LogLevel, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
@@ -82,7 +87,9 @@ def log(level: LogLevel, message: str, extra: Optional[Dict[str, Any]] = None) -
     _current_log_fn(level, message, extra)
 
 
-def set_logger(log_fn: Callable[[LogLevel, str, Optional[Dict[str, Any]]], None]) -> None:
+def set_logger(
+    log_fn: Callable[[LogLevel, str, Optional[Dict[str, Any]]], None],
+) -> None:
     """Set a custom logger function to be used by pygqlc.
 
     Args:
