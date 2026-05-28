@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.1] - 2026-05-28
+
+- [Fixed] `ConnectionResetError` (and siblings in `TRANSIENT_WS_ERRORS`) raised from `_conn.recv()` in `_sub_routing_loop` — including the case where it originates inside websocket-client's automatic `pong()` reply to a low-level PING frame — now causes an explicit `_close_conn_safely()` before setting `wss_conn_halted`. This ensures the dead socket is torn down (preventing leaks or inconsistent lib state on reconnect) while still logging at WARNING and triggering the existing calm reconnect path. The narrow `except BrokenPipeError` in `_unsubscribe` was broadened to the full transient set for consistency. Matches the exact traceback from the lamosa-gto incident. (OPS-3517)
+
 ## [3.8.0] - 2026-05-28
 
 - [Fixed] `addEnvironment` no longer wipes an existing environment's `wss`/`url`/`headers`/`post_timeout`/`ipv4_only` when re-registering the same environment name without those arguments. Re-registration now MERGES — omitted arguments keep their previous values. Previously a second `addEnvironment("prod", url=..., headers=...)` on the shared (Singleton) client — e.g. a library configuring its own environment — silently reset `wss` to `None`, which crashed the WSS reconnect loop in `_new_conn` with `TypeError: argument of type 'NoneType' is not a container` and produced endless "Failed connecting to None" errors. This was the root cause of the production incident. (OPS-3496)

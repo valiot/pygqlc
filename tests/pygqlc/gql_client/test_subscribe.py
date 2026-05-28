@@ -164,8 +164,8 @@ def routing_client():
 
 
 def test_sub_routing_loop_non_dict_message_triggers_reconnect(routing_client):
-    """OPS-3485: a non-dict payload (orjson.loads(b'null') -> None) must not crash the
-    router on `.get`; it should log a WARNING and halt to trigger reconnection."""
+    """OPS-3485/OPS-3517: a non-dict payload (orjson.loads(b'null') -> None) must not crash the
+    router on `.get`; it should log a WARNING and halt (closing the dead conn) to trigger reconnection."""
     gql = routing_client
     gql._conn.recv.return_value = b"null"
 
@@ -177,6 +177,9 @@ def test_sub_routing_loop_non_dict_message_triggers_reconnect(routing_client):
 
     assert gql.wss_conn_halted is True
     assert new_conn.called
+    assert gql._conn.close.called, (
+        "dead conn must be closed when halting on bad message"
+    )
     assert any(
         level == LogLevel.WARNING and "invalid WSS message" in msg
         for level, msg in records
@@ -185,8 +188,9 @@ def test_sub_routing_loop_non_dict_message_triggers_reconnect(routing_client):
 
 
 def test_sub_routing_loop_connection_reset_logged_as_warning(routing_client):
-    """OPS-3485: ConnectionResetError from recv is transient — log at WARNING (not
-    ERROR+traceback) and halt for reconnection."""
+    """OPS-3485/OPS-3517: ConnectionResetError from recv (including when raised by
+    websocket-client's internal pong() during a protocol PING frame) is transient —
+    log at WARNING (not ERROR+traceback), close the dead conn, and halt for reconnection."""
     gql = routing_client
     gql._conn.recv.side_effect = ConnectionResetError(104, "Connection reset by peer")
 
@@ -198,6 +202,9 @@ def test_sub_routing_loop_connection_reset_logged_as_warning(routing_client):
 
     assert gql.wss_conn_halted is True
     assert new_conn.called
+    assert gql._conn.close.called, (
+        "dead conn must be closed on ConnectionResetError (the recv/pong case from OPS-3517)"
+    )
     assert any(
         level == LogLevel.WARNING and "reset or closed by peer" in msg
         for level, msg in records
@@ -210,7 +217,7 @@ def test_sub_routing_loop_connection_reset_logged_as_warning(routing_client):
 
 def test_sub_routing_loop_unexpected_error_logged_as_error(routing_client):
     """A non-transient error (not in TRANSIENT_WS_ERRORS) must still surface at ERROR
-    level and halt for reconnection."""
+    level, close the dead conn, and halt for reconnection."""
     gql = routing_client
     gql._conn.recv.side_effect = ValueError("unexpected wire failure")
 
@@ -222,6 +229,9 @@ def test_sub_routing_loop_unexpected_error_logged_as_error(routing_client):
 
     assert gql.wss_conn_halted is True
     assert new_conn.called
+    assert gql._conn.close.called, (
+        "dead conn must be closed even on non-transient recv error"
+    )
     assert any(
         level == LogLevel.ERROR and "Some error trying to receive WSS" in msg
         for level, msg in records

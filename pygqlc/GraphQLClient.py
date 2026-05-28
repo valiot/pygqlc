@@ -479,8 +479,11 @@ class GraphQLClient(metaclass=Singleton):
         sub["kill"] = True
         try:
             self._stop(_id)
-        except BrokenPipeError as e:
-            log(LogLevel.WARNING, "WSS Pipe broken, nothing to stop")
+        except Exception as e:
+            if isinstance(e, TRANSIENT_WS_ERRORS):
+                log(LogLevel.WARNING, "WSS connection reset or closed, nothing to stop")
+            else:
+                log(LogLevel.WARNING, "WSS send error on unsubscribe, nothing to stop")
         sub["thread"].join()
         sub["running"] = False
         self.unsubscribing = False
@@ -546,12 +549,14 @@ class GraphQLClient(metaclass=Singleton):
                         log(LogLevel.WARNING, "WSS connection reset or closed by peer")
                     else:
                         log(LogLevel.ERROR, "Some error trying to receive WSS")
+                    self._close_conn_safely()
                     self.wss_conn_halted = True
                 continue
 
             if not isinstance(message, dict):
                 if not self.closing:
                     log(LogLevel.WARNING, "invalid WSS message, reconnecting")
+                    self._close_conn_safely()
                     self.wss_conn_halted = True
                 continue
 
@@ -681,6 +686,13 @@ class GraphQLClient(metaclass=Singleton):
         data = py_.get(message, "payload", {})
         return data_flatten(data) if self.subs[_id]["flatten"] else data
 
+    def _close_conn_safely(self):
+        if self._conn:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+
     def _new_conn(self):
         if not self.environment:
             log(LogLevel.ERROR, "No environment set; cannot establish WSS connection")
@@ -778,12 +790,13 @@ class GraphQLClient(metaclass=Singleton):
                     self._conn.send(PING_JSON)
                     ping_count += 1
                     # No need to log normal ping operations
-                except Exception as e:
+                except Exception:
                     if not self.closing:
                         log(
                             LogLevel.ERROR,
                             "error trying to send ping, WSS Pipe is broken",
                         )
+                        self._close_conn_safely()
                         self.wss_conn_halted = True
 
     def _registerSub(self, _id=None):
