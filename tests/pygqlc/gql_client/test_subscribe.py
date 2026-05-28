@@ -220,3 +220,129 @@ def test_sub_routing_loop_valid_message_does_not_halt(routing_client):
     new_conn.assert_not_called()
     assert not any(level == LogLevel.ERROR for level, msg in records)
     assert not any('invalid WSS message' in msg for level, msg in records)
+
+
+def _seed_sub(gql, sub_id, **overrides):
+    """Build a fully-shaped subscription entry and store it in gql.subs.
+
+    The thread is started with a no-op target and immediately joined, so
+    `.is_alive()` is False — exactly the post-mortem state we want to test
+    the routing/registry against.
+    """
+    thread = threading.Thread(target=lambda: None)
+    thread.start()
+    thread.join()
+    sub = {
+        'thread': thread,
+        'queue': [],
+        'runs': 0,
+        'flatten': True,
+        'query': 'subscription S { x }',
+        'variables': {'a': 1},
+        'callback': MagicMock(),
+        'on_error_callback': MagicMock(),
+        'running': False,
+        'kill': False,
+        'starting': False,
+        'remove': False,
+        'unsub': lambda: None,
+    }
+    sub.update(overrides)
+    gql.subs[sub_id] = sub
+    return sub
+
+
+def test_complete_retains_sub_for_resubscribe(routing_client):
+    """T1: server-initiated COMPLETE must NOT remove the sub from the registry,
+    so the next reconnect's _resubscribe_all restores it."""
+    gql = routing_client
+    sub = _seed_sub(gql, '1', queue=[{'id': '1', 'type': 'complete'}])
+
+    gql._subscription_loop(sub['callback'], '1', sub['on_error_callback'])
+
+    assert '1' in gql.subs, 'COMPLETE must not remove sub from registry'
+    assert gql.subs['1']['running'] is False
+    assert gql.subs['1']['remove'] is False
+
+    with patch.object(gql, 'subscribe') as mocked_subscribe:
+        gql._resubscribe_all()
+
+    mocked_subscribe.assert_called_once_with(
+        query='subscription S { x }',
+        variables={'a': 1},
+        callback=sub['callback'],
+        on_error_callback=sub['on_error_callback'],
+        flatten=True,
+        _id='1',
+    )
+
+
+def test_user_unsubscribe_removes_and_resubscribe_skips(routing_client):
+    """T2: explicit user _unsubscribe sets remove=True and _resubscribe_all
+    must skip removed subs."""
+    gql = routing_client
+    _seed_sub(gql, '1')
+
+    with patch.object(gql, '_stop', return_value=None):
+        gql._unsubscribe('1')
+
+    assert gql.subs['1']['remove'] is True
+    assert gql.subs['1']['kill'] is True
+
+    with patch.object(gql, 'subscribe') as mocked_subscribe:
+        gql._resubscribe_all()
+
+    mocked_subscribe.assert_not_called()
+
+
+def test_error_marks_remove(routing_client):
+    """T3: server ERROR sets remove=True (preserves prior delete semantics) and
+    invokes on_error_callback once."""
+    gql = routing_client
+    error_msg = {'id': '1', 'type': 'error', 'payload': [{'message': 'boom'}]}
+    ecb = MagicMock()
+    sub = _seed_sub(gql, '1', queue=[error_msg], on_error_callback=ecb)
+
+    gql._subscription_loop(sub['callback'], '1', ecb)
+
+    assert gql.subs['1']['remove'] is True
+    ecb.assert_called_once_with(error_msg)
+
+
+def test_cleanup_deletes_only_remove_subs(routing_client):
+    """T4: the routing loop's cleanup must delete only subs marked remove=True;
+    a dead-thread sub with remove=False must be retained for resubscribe."""
+    gql = routing_client
+    _seed_sub(gql, 'keep', running=False, remove=False)
+    _seed_sub(gql, 'drop', running=False, remove=True)
+
+    gql._conn.recv.side_effect = ConnectionResetError(104, 'Connection reset by peer')
+
+    with patch.object(gql, '_new_conn', side_effect=_stop_loop_on(gql)), \
+            patch.object(gql, '_resubscribe_all'):
+        _run_routing_loop(gql)
+
+    assert 'keep' in gql.subs, 'sub without remove=True must be retained'
+    assert 'drop' not in gql.subs, 'sub with remove=True must be deleted'
+
+
+def test_connection_drop_resubscribes_all_active(routing_client):
+    """T5: regression — on a connection drop with no per-sub complete/error,
+    _resubscribe_all restores every active sub (this is what fails today)."""
+    gql = routing_client
+    sub_a = _seed_sub(gql, 'a', query='subscription A { x }', variables={'k': 'a'})
+    sub_b = _seed_sub(gql, 'b', query='subscription B { y }', variables={'k': 'b'})
+
+    with patch.object(gql, 'subscribe') as mocked_subscribe:
+        gql._resubscribe_all()
+
+    assert mocked_subscribe.call_count == 2
+    by_id = {call.kwargs['_id']: call.kwargs for call in mocked_subscribe.call_args_list}
+    assert by_id['a']['query'] == 'subscription A { x }'
+    assert by_id['a']['variables'] == {'k': 'a'}
+    assert by_id['a']['callback'] is sub_a['callback']
+    assert by_id['a']['on_error_callback'] is sub_a['on_error_callback']
+    assert by_id['a']['flatten'] is True
+    assert by_id['b']['query'] == 'subscription B { y }'
+    assert by_id['b']['variables'] == {'k': 'b'}
+    assert by_id['b']['callback'] is sub_b['callback']

@@ -2,7 +2,11 @@
 
 ## [3.7.1] - 2026-05-28
 
-- [Fixed] `ConnectionResetError` (and BrokenPipe/Aborted/closed/invalid-JSON cases) during websocket recv in `_sub_routing_loop` no longer kills the router thread with unhandled exception (or AttributeError on non-dict after orjson.loads); now classified as WARNING for transient resets (avoiding scary tracebacks) and triggers the existing reconnect logic reliably. Added guard for null/empty/non-dict messages post-parse. Includes dependency refreshes. (OPS-3485)
+- [Fixed] Non-dict payloads after `orjson.loads` (e.g. a server-emitted `null` or array) no longer crash `_sub_routing_loop` with an unhandled `AttributeError` at `message.get('type')` and kill the router thread. A `not isinstance(message, dict)` guard now sets `wss_conn_halted` and triggers the existing reconnect path. (OPS-3485)
+- [Changed] Transient websocket errors during `recv` (`ConnectionResetError`, `BrokenPipeError`, `ConnectionAbortedError`, `WebSocketConnectionClosedException`) are now classified at WARNING level rather than ERROR with a full traceback. Functional behavior (catch, set `wss_conn_halted=True`, reconnect) is unchanged; only the log noise. Exception classes hoisted into a module-level `TRANSIENT_WS_ERRORS` constant for readability.
+- [Fixed] A server-initiated `complete` frame for a subscription the user never unsubscribed no longer silently drops the subscription. The cleanup now removes subscriptions only on explicit user `unsubscribe()` (or server `error`); a server `complete` retains the registry entry so `_resubscribe_all()` restores it on the next reconnect. This makes pygqlc resilient to servers that send per-subscription `complete` as part of a graceful shutdown drain — which previously caused silent permanent loss of subscriptions across every server deploy until each client process restarted.
+- [Changed] Replaced the prior subscription-loop test with deterministic regression tests covering non-dict payload, transient error log levels, generic error log level, valid message routing, and the retain-on-complete semantics, with negative-control verification that each test fails against the pre-fix code. Tests run in <100 ms with no real sockets or sleeps.
+- [Changed] CI no longer installs the private `valiotlogging` extra (`uv sync --frozen` instead of `--all-extras`), so public/fork CI runs against the graceful-fallback path. Direct dependency refreshes (orjson 3.11.8 → 3.11.9, dev tooling) + `uv.lock` aligned with Palantir baseline.
 
 ## [3.7.0] - 2026-05-04
 
