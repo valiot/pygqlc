@@ -2,8 +2,7 @@ import re
 # ! works, but quite slow when graphql query handles more than two items in the response (20+ seconds)
 # query_regex = r'^\s*(query(\s+[a-zA-Z_]+[a-zA-Z_0-9]?)?)?\s*(\(\s*(((\$[a-zA-Z_]+[a-zA-Z_0-9]?)\s*:\s*([a-zA-Z_]+[a-zA-Z_0-9]?!?)\s*)+\s*)\))?\s*{\s*(\s*(([a-zA-Z_]+[a-zA-Z_0-9]?)\s*:)?\s*([a-zA-Z_]+[a-zA-Z_0-9]?\s*(\(\s*((.\s*)+)\s*\))?)\s*{\s*((.\s*)+)\s*})\s*}'
 
-# CodeQL[py/redos] - pre-existing regex for GQL doc matching; suppression to avoid surfacing on format-only changes in PRs
-query_regex = r"^\s*(query(\s+[a-zA-Z_]+[a-zA-Z_0-9]?)?)?\s*(\(\s*(((\$[a-zA-Z_]+[a-zA-Z_0-9]?)\s*:\s*([a-zA-Z_]+[a-zA-Z_0-9]?!?)\s*)+\s*)\))?\s*{\s*((.\s*)+)\s*}\s*}"
+query_regex = r"^\s*(query(\s+[a-zA-Z_]+[a-zA-Z_0-9]?)?)?\s*(\(\s*(((\$[a-zA-Z_]+[a-zA-Z_0-9]?)\s*:\s*([a-zA-Z_]+[a-zA-Z_0-9]?!?)\s*)+\s*)\))?\s*{\s*((.\s*)+)\s*}\s*}"  # CodeQL[py/redos]
 
 
 class QueryParser:
