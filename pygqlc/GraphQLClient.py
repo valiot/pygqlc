@@ -26,6 +26,10 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 GQL_WS_SUBPROTOCOL = "graphql-transport-ws"
 
+# Sentinel for addEnvironment: an argument left unset keeps the environment's
+# previous value on re-registration instead of overwriting it. (OPS-3496)
+_KEEP = object()
+
 # Transient websocket errors that should trigger a calm reconnect (WARNING), not an ERROR+traceback.
 TRANSIENT_WS_ERRORS = (
     ConnectionResetError,
@@ -678,15 +682,30 @@ class GraphQLClient(metaclass=Singleton):
         return data_flatten(data) if self.subs[_id]["flatten"] else data
 
     def _new_conn(self):
-        env = self.environments.get(self.environment, None)
+        if not self.environment:
+            log(LogLevel.ERROR, "No environment set; cannot establish WSS connection")
+            return False
+        env = self.environments.get(self.environment)
+        if not env:
+            log(
+                LogLevel.ERROR,
+                f"Environment {self.environment} not registered; cannot establish WSS connection",
+            )
+            return False
         self.ws_url = env.get("wss")
+        if not self.ws_url:
+            log(
+                LogLevel.ERROR,
+                f"No WSS URL configured for environment {self.environment}; cannot establish WSS connection",
+            )
+            return False
         try:
             self._conn = websocket.create_connection(
                 self.ws_url, subprotocols=[GQL_WS_SUBPROTOCOL]
             )
             self._conn_init()
             return True
-        except Exception as e:
+        except Exception:
             log(LogLevel.ERROR, f"Failed connecting to {self.ws_url}")
             return False
 
@@ -839,45 +858,61 @@ class GraphQLClient(metaclass=Singleton):
     def addEnvironment(
         self,
         name,
-        url=None,
-        wss=None,
-        headers={},
+        url=_KEEP,
+        wss=_KEEP,
+        headers=_KEEP,
         default=False,
-        timeoutWebsocket=60,
-        post_timeout=60,
-        ipv4_only=False,
+        timeoutWebsocket=_KEEP,
+        post_timeout=_KEEP,
+        ipv4_only=_KEEP,
     ):
-        """This fuction adds a new environment to the instance.
+        """This fuction adds (or re-registers) an environment on the instance.
+
+        Re-registering an already-known environment MERGES: any argument left
+        unset keeps the environment's previous value instead of overwriting it.
+        This prevents a second ``addEnvironment(name, url=..., headers=...)`` on
+        the shared (Singleton) client — e.g. a library configuring its own
+        environment — from silently wiping a configured ``wss`` and breaking the
+        live subscription connection. (OPS-3496)
 
         Args:
             name (string): Name of the environment.
-            url (string, optional): URL of the environmet. Defaults to None.
-            wss (string, optional): URL of the WSS of the environment. Defaults to None.
+            url (string, optional): URL of the environmet. Kept unchanged if omitted.
+            wss (string, optional): URL of the WSS of the environment. Kept unchanged if omitted.
             headers (dict, optional): A dictionary with the headers
-             (like authorization). Defaults to {}.
+             (like authorization). Kept unchanged if omitted.
             default (bool, optional): Checks if the new environment will be the
              default one of the instance. Defaults to False.
             timeoutWebsocket (int, optional): Seconds of the timeout of the
-             websocket. Defaults to 60.
+             websocket. Left unchanged if omitted.
             post_timeout (int, optional): Timeout in seconds for each post.
-             Defaults to 60.
+             Kept unchanged if omitted (defaults to 60 on first registration).
             ipv4_only (bool, optional): Forces connections to use IPv4 only.
-             Helps with slow connections on networks with problematic IPv6. Defaults to False.
+             Helps with slow connections on networks with problematic IPv6.
+             Kept unchanged if omitted (defaults to False on first registration).
         """
+        existing = self.environments.get(name, {})
         self.environments[name] = {
-            "url": url,
-            "wss": wss,
-            "headers": headers.copy(),
-            "post_timeout": post_timeout,
-            "ipv4_only": ipv4_only,
+            "url": existing.get("url") if url is _KEEP else url,
+            "wss": existing.get("wss") if wss is _KEEP else wss,
+            "headers": dict(
+                existing.get("headers", {}) if headers is _KEEP else headers
+            ),
+            "post_timeout": existing.get("post_timeout", 60)
+            if post_timeout is _KEEP
+            else post_timeout,
+            "ipv4_only": existing.get("ipv4_only", False)
+            if ipv4_only is _KEEP
+            else ipv4_only,
         }
 
-        if ipv4_only:
-            self._update_client_params(ipv4_only)
+        if self.environments[name]["ipv4_only"]:
+            self._update_client_params(self.environments[name]["ipv4_only"])
 
         if default:
             self.setEnvironment(name)
-        self.setTimeoutWebsocket(timeoutWebsocket)
+        if timeoutWebsocket is not _KEEP:
+            self.setTimeoutWebsocket(timeoutWebsocket)
 
     def _update_client_params(self, ipv4_only):
         """Update HTTP client parameters based on IPv4 setting"""

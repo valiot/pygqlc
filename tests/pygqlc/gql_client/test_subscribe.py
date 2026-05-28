@@ -246,3 +246,56 @@ def test_sub_routing_loop_valid_message_does_not_halt(routing_client):
     new_conn.assert_not_called()
     assert not any(level == LogLevel.ERROR for level, msg in records)
     assert not any("invalid WSS message" in msg for level, msg in records)
+
+
+def test_addenvironment_reregister_preserves_wss():
+    """OPS-3496: re-registering an existing environment without `wss` (as a library
+    configuring the shared Singleton client does) must NOT wipe the previously-set
+    wss/url/headers/post_timeout. The clobber is what reset ws_url to None and crashed
+    the live reconnect loop. Provided fields still override; omitted fields are kept."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    gql.addEnvironment(
+        "prod",
+        url="http://api",
+        wss="ws://live",
+        headers={"Authorization": "Bearer host"},
+        post_timeout=120,
+        default=True,
+    )
+    # A second consumer re-registers the same env without wss (the OPS-3496 trigger):
+    gql.addEnvironment(
+        "prod", url="http://api", headers={"Authorization": "Bearer other"}
+    )
+    env = gql.environments["prod"]
+    assert env["wss"] == "ws://live", "wss must survive re-registration"
+    assert env["post_timeout"] == 120, "post_timeout must survive re-registration"
+    assert env["headers"]["Authorization"] == "Bearer other", (
+        "explicitly provided fields must still override"
+    )
+    Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_new_conn_returns_false_when_wss_missing():
+    """OPS-3496: _new_conn must fail gracefully (log ERROR, return False) instead of
+    raising TypeError inside websocket.create_connection when wss is None."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    gql.addEnvironment("no-wss", url="http://api", wss=None, default=True)
+    with _capture_logs() as records:
+        result = gql._new_conn()
+    assert result is False
+    assert any(level == LogLevel.ERROR for level, _ in records)
+    Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_new_conn_returns_false_when_no_environment():
+    """OPS-3496: _new_conn must not raise AttributeError when no environment is set;
+    it returns False and logs an ERROR so the router thread survives."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    with _capture_logs() as records:
+        result = gql._new_conn()
+    assert result is False
+    assert any(level == LogLevel.ERROR for level, _ in records)
+    Singleton._instances.pop(GraphQLClient, None)
