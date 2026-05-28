@@ -1,12 +1,26 @@
 name: Build and publish to PyPI
 
+# Fully automated, version-bump-triggered publish.
+# Publishing happens when pygqlc/__version__.py changes on main (or via manual
+# dispatch). The workflow itself creates the vX.Y.Z tag + GitHub Release, so it
+# MUST NOT trigger on `release` events and the push trigger is restricted to the
+# `main` branch (the tag this workflow pushes must not re-trigger it).
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - pygqlc/__version__.py
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# Serialize runs that target the same ref so two overlapping version-bump pushes
+# (or a push + manual dispatch) cannot race on `gh release create`. Never cancel
+# an in-flight publish/release.
+concurrency:
+  group: publish-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-and-publish:
@@ -14,10 +28,12 @@ jobs:
     # Block runs from forks so a fork cannot mint an OIDC token / publish.
     if: github.repository == 'valiot/pygqlc'
     permissions:
-      contents: read
-      id-token: write
+      contents: write # create tag + release
+      id-token: write # OIDC trusted publishing
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # full history/tags to detect existing releases
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.1.0
@@ -27,36 +43,109 @@ jobs:
       - name: Set up Python
         run: uv python install 3.13
 
-      - name: Build sdist and wheel
+      - name: Read version from pygqlc/__version__.py
+        id: version
         run: |
+          set -euo pipefail
+          version="$(uv run --no-project python -c 'import re,pathlib; print(re.search(r"\"([^\"]+)\"", pathlib.Path("pygqlc/__version__.py").read_text()).group(1))')"
+          if [ -z "${version}" ]; then
+            echo "::error::Could not read version from pygqlc/__version__.py"
+            exit 1
+          fi
+          echo "Version: ${version}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check if version already on PyPI
+        id: pypi
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Retry transient blips; on a hard network/DNS failure fall back to 000
+          # so the non-200 branch publishes (uv publish + PyPI reject duplicates,
+          # so a re-run is always safe) instead of aborting the step.
+          if ! code="$(curl -sS --retry 3 --retry-all-errors --max-time 30 -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/pygqlc/${VERSION}/json")"; then
+            code="000"
+          fi
+          echo "PyPI HTTP status for pygqlc ${VERSION}: ${code}"
+          if [ "${code}" = "200" ]; then
+            echo "Already published to PyPI; will skip publishing."
+            echo "published=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "Not yet on PyPI; will build and publish."
+            echo "published=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Build sdist and wheel
+        if: steps.pypi.outputs.published == 'false'
+        run: |
+          set -euo pipefail
           rm -rf dist
           uv build
 
-      - name: Verify built version matches expected version
+      - name: Verify built version matches version file
+        if: steps.pypi.outputs.published == 'false'
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          EXPECTED: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          count="$(ls dist/pygqlc-*.tar.gz 2>/dev/null | wc -l)"
+          count="$(ls dist/pygqlc-*.tar.gz 2>/dev/null | wc -l || true)"
           if [ "${count}" -ne 1 ]; then
             echo "::error::Expected exactly one sdist in dist/, found ${count}"
             exit 1
           fi
           built="$(ls dist/pygqlc-*.tar.gz | sed -E 's#.*/pygqlc-(.+)\.tar\.gz#\1#')"
-          if [ "${EVENT_NAME}" = "release" ]; then
-            expected="${RELEASE_TAG#v}"
-            source="release tag ${RELEASE_TAG}"
-          else
-            expected="$(uv run --no-project python -c 'import re,pathlib; print(re.search(r"\"([^\"]+)\"", pathlib.Path("pygqlc/__version__.py").read_text()).group(1))')"
-            source="pygqlc/__version__.py"
-          fi
           echo "Built version:    ${built}"
-          echo "Expected version: ${expected} (from ${source})"
-          if [ "${built}" != "${expected}" ]; then
-            echo "::error::Built version ${built} does not match expected ${expected} (${source})"
+          echo "Expected version: ${EXPECTED} (from pygqlc/__version__.py)"
+          if [ "${built}" != "${EXPECTED}" ]; then
+            echo "::error::Built version ${built} does not match expected ${EXPECTED}"
             exit 1
           fi
 
       - name: Publish to PyPI (OIDC trusted publishing)
+        if: steps.pypi.outputs.published == 'false'
         run: uv publish --trusted-publishing always
+
+      - name: Create git tag and GitHub Release
+        # Runs whether we just published or it was already on PyPI, so a missing
+        # release is backfilled. Idempotent: skips if the tag/release exists.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.sha }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PUBLISHED: ${{ steps.pypi.outputs.published }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists; nothing to do."
+            exit 0
+          fi
+
+          # Extract the CHANGELOG section for this version:
+          # from "## [X.Y.Z]" up to (but not including) the next "## [" header.
+          notes="$(awk -v ver="${VERSION}" '
+            $0 ~ "^## \\[" ver "\\]" { capture=1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md)"
+          if [ -z "$(printf '%s' "${notes}" | tr -d '[:space:]')" ]; then
+            notes="Release ${TAG}"
+          fi
+          notes_file="$(mktemp)"
+          printf '%s\n' "${notes}" > "${notes_file}"
+
+          # dist/ only exists when we built+published in this run; attach when present.
+          assets=()
+          if [ -d dist ]; then
+            while IFS= read -r f; do assets+=("${f}"); done < <(find dist -maxdepth 1 -type f | sort)
+          fi
+
+          echo "Creating release ${TAG} (published this run: ${PUBLISHED})"
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file "${notes_file}" \
+            --target "${GITHUB_SHA}" \
+            "${assets[@]}"
