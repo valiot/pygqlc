@@ -1,0 +1,62 @@
+name: Build and publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    # Block runs from forks so a fork cannot mint an OIDC token / publish.
+    if: github.repository == 'valiot/pygqlc'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Build sdist and wheel
+        run: |
+          rm -rf dist
+          uv build
+
+      - name: Verify built version matches expected version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          count="$(ls dist/pygqlc-*.tar.gz 2>/dev/null | wc -l)"
+          if [ "${count}" -ne 1 ]; then
+            echo "::error::Expected exactly one sdist in dist/, found ${count}"
+            exit 1
+          fi
+          built="$(ls dist/pygqlc-*.tar.gz | sed -E 's#.*/pygqlc-(.+)\.tar\.gz#\1#')"
+          if [ "${EVENT_NAME}" = "release" ]; then
+            expected="${RELEASE_TAG#v}"
+            source="release tag ${RELEASE_TAG}"
+          else
+            expected="$(uv run --no-project python -c 'import re,pathlib; print(re.search(r"\"([^\"]+)\"", pathlib.Path("pygqlc/__version__.py").read_text()).group(1))')"
+            source="pygqlc/__version__.py"
+          fi
+          echo "Built version:    ${built}"
+          echo "Expected version: ${expected} (from ${source})"
+          if [ "${built}" != "${expected}" ]; then
+            echo "::error::Built version ${built} does not match expected ${expected} (${source})"
+            exit 1
+          fi
+
+      - name: Publish to PyPI (OIDC trusted publishing)
+        run: uv publish --trusted-publishing always
