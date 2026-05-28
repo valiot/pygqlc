@@ -18,7 +18,6 @@ import orjson
 import logging
 from pygqlc.helper_modules.Singleton import Singleton
 from pygqlc.logging import log, LogLevel
-from tenacity import retry, retry_if_result, stop_after_attempt, wait_random
 from .MutationBatch import MutationBatch
 
 # Set httpx logger to WARNING level to reduce HTTP request logs
