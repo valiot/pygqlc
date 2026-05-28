@@ -775,16 +775,26 @@ class GraphQLClient(metaclass=Singleton):
             current_time = time.time()
             if (current_time - self.pingTimer) > self.pingIntervalTime:
                 self.pingTimer = current_time
+                if not self._conn:
+                    if not self.closing:
+                        self.wss_conn_halted = True
+                    continue
                 try:
                     self._conn.send(PING_JSON)
                     ping_count += 1
                     # No need to log normal ping operations
                 except Exception as e:
                     if not self.closing:
-                        log(
-                            LogLevel.ERROR,
-                            "error trying to send ping, WSS Pipe is broken",
-                        )
+                        if isinstance(e, TRANSIENT_WS_ERRORS):
+                            log(
+                                LogLevel.WARNING,
+                                "WSS connection reset or closed by peer while sending ping",
+                            )
+                        else:
+                            log(
+                                LogLevel.ERROR,
+                                "error trying to send ping, WSS Pipe is broken",
+                            )
                         self.wss_conn_halted = True
 
     def _registerSub(self, _id=None):

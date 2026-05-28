@@ -11,6 +11,10 @@
 - [Fixed] `addEnvironment` no longer wipes an existing environment's `wss`/`url`/`headers`/`post_timeout`/`ipv4_only` when re-registering the same environment name without those arguments. Re-registration now MERGES — omitted arguments keep their previous values. Previously a second `addEnvironment("prod", url=..., headers=...)` on the shared (Singleton) client — e.g. a library configuring its own environment — silently reset `wss` to `None`, which crashed the WSS reconnect loop in `_new_conn` with `TypeError: argument of type 'NoneType' is not a container` and produced endless "Failed connecting to None" errors. This was the root cause of the production incident. (OPS-3496)
 - [Fixed] `_new_conn` now guards against an unset/unregistered environment or a missing `wss`, logging a clear ERROR and returning `False` instead of raising `AttributeError`/`TypeError` and killing the subscription router thread. Defense-in-depth alongside the `addEnvironment` fix. (OPS-3496)
 
+## [3.8.1] - 2026-05-28
+
+- [Fixed] `_ping_pong` background thread no longer dies with unhandled BrokenPipeError (or ConnectionResetError etc.) when the WebSocket becomes invalid; transient send errors now log at WARNING (matching the `_sub_routing_loop` behavior from OPS-3485), set `wss_conn_halted`, and let the keep-alive thread survive so reconnection can restore pings. Added `if not self._conn` guard + regression test modeled on prior websocket tests. (OPS-3523)
+
 ## [3.7.2] - 2026-05-28
 
 - [Changed] Repository-wide `ruff format` pass — formatting only, no behavior change.
