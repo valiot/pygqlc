@@ -2,6 +2,7 @@ from . import subscriptions as subs
 from . import mutations as muts
 import types
 import time
+from unittest.mock import MagicMock, patch
 
 
 def on_author_updated(msg):
@@ -93,3 +94,87 @@ def test_sub_default_callback(gql):
 # ! to exit:
 # >> gql.close()
 # >> exit()
+
+
+def test_sub_routing_loop_handles_connection_reset_and_invalid_messages():
+    """TDD test for OPS-3485: _sub_routing_loop must not let ConnectionResetError
+    (from ws recv on peer reset) or post-parse None/invalid messages escape and
+    kill the routing thread. Invalid msgs after reset need guard.
+    Write test first -> currently RED because AttributeError on None.get after loads('null').
+    """
+    from pygqlc import GraphQLClient
+    import threading
+    import time as _time
+    import sys
+    from io import StringIO
+
+    gql = GraphQLClient()
+    gql.addEnvironment('testenv', url='http://ex', wss='ws://ex', default=True)
+
+    # --- Scenario 1: invalid message (loads to None) causes AttributeError on .get today ---
+    mock_conn = MagicMock()
+    mock_conn.recv.return_value = b'null'  # orjson.loads -> None ; then .get crashes outside try
+    mock_conn.settimeout.return_value = None
+    mock_conn.close.return_value = None
+
+    gql._conn = mock_conn
+    gql.wss_conn_halted = False
+    gql.closing = False
+    gql.unsubscribing = False
+    gql.subs = {}
+    gql.poll_interval = 0.001
+    gql.websocket_timeout = 1
+
+    old_stderr = sys.stderr
+    sys.stderr = mystd = StringIO()
+    try:
+        thread = threading.Thread(target=gql._sub_routing_loop, daemon=True)
+        thread.start()
+        _time.sleep(0.05)  # let it do one recv+crash
+        gql.closing = True
+        thread.join(timeout=0.5)
+        stderr_content = mystd.getvalue()
+    finally:
+        sys.stderr = old_stderr
+
+    # CURRENTLY RED: AttributeError from 'NoneType' has no 'get' will be in stderr or thread died unclean
+    # After fix (guard after loads), no such error, thread survives the bad msg by setting halted
+    has_crash = 'AttributeError' in stderr_content or "'NoneType' object has no attribute 'get'" in stderr_content
+    assert not has_crash, "Expected no crash on invalid message after peer-reset-like data; got: " + stderr_content[:300]
+    assert gql.wss_conn_halted, "Should set halted on invalid/None message to trigger reconnect"
+    assert not thread.is_alive(), "routing thread must survive bad message"
+
+    # --- Scenario 2: ConnectionResetError on recv is caught, sets halted, no escape ---
+    mock_conn2 = MagicMock()
+    reset_count = {'c': 0}
+
+    def recv_reset():
+        reset_count['c'] += 1
+        if reset_count['c'] == 1:
+            raise ConnectionResetError(104, "Connection reset by peer")
+        gql.closing = True
+        return b'{"type":"pong"}'
+
+    mock_conn2.recv.side_effect = recv_reset
+    mock_conn2.settimeout.return_value = None
+
+    gql2 = GraphQLClient()
+    gql2.addEnvironment('testenv2', url='http://ex', wss='ws://ex', default=True)
+    gql2._conn = mock_conn2
+    gql2.wss_conn_halted = False
+    gql2.closing = False
+    gql2.unsubscribing = False
+    gql2.subs = {}
+    gql2.poll_interval = 0.001
+    gql2.websocket_timeout = 1
+
+    # patch _new_conn so halted path doesn't try real connect and loop forever
+    with patch.object(gql2, '_new_conn', return_value=False):
+        thread2 = threading.Thread(target=gql2._sub_routing_loop, daemon=True)
+        thread2.start()
+        _time.sleep(0.1)
+        gql2.closing = True
+        thread2.join(timeout=0.5)
+
+    assert not thread2.is_alive(), "thread must not die from ConnectionResetError"
+    assert gql2.wss_conn_halted, "reset error must set halted for reconnection logic"

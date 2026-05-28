@@ -519,18 +519,25 @@ class GraphQLClient(metaclass=Singleton):
                 del self.subs[sub_id]
 
             try:
-                # Set a smaller timeout for faster response
                 self._conn.settimeout(0.5)
-                message = orjson.loads(self._conn.recv())
-                # Reset timeout after successful receive
+                raw = self._conn.recv()
+                message = orjson.loads(raw)
                 self._conn.settimeout(self.websocket_timeout)
             except (TimeoutError, websocket.WebSocketTimeoutException):
-                # Expected timeout - not an error
                 time.sleep(self.poll_interval)
                 continue
             except Exception as e:
                 if not self.closing:
-                    log(LogLevel.ERROR, 'Some error trying to receive WSS')
+                    if isinstance(e, (ConnectionResetError, BrokenPipeError, ConnectionAbortedError, websocket.WebSocketConnectionClosedException)):
+                        log(LogLevel.WARNING, 'WSS connection reset or closed by peer')
+                    else:
+                        log(LogLevel.ERROR, 'Some error trying to receive WSS')
+                    self.wss_conn_halted = True
+                continue
+
+            if not isinstance(message, dict):
+                if not self.closing:
+                    log(LogLevel.WARNING, 'invalid WSS message, reconnecting')
                     self.wss_conn_halted = True
                 continue
 

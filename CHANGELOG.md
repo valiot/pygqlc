@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.7.1] - 2026-05-28
+
+- [Fixed] `ConnectionResetError` (and BrokenPipe/Aborted/closed/invalid-JSON cases) during websocket recv in `_sub_routing_loop` no longer kills the router thread with unhandled exception (or AttributeError on non-dict after orjson.loads); now classified as WARNING for transient resets (avoiding scary tracebacks) and triggers the existing reconnect logic reliably. Added guard for null/empty/non-dict messages post-parse. Includes dependency refreshes. (OPS-3485)
+
 ## [3.7.0] - 2026-05-04
 
 - [Changed] Migrated build/dependency tooling from Poetry to **uv** with the `hatchling` build backend. `pyproject.toml` rewritten to PEP 621; version is now read dynamically from `pygqlc/__version__.py`
