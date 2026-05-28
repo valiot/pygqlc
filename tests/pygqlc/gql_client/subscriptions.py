@@ -1,4 +1,4 @@
-sub_author_updated = '''
+sub_author_updated = """
   subscription{
     authorUpdated{
       successful
@@ -16,9 +16,9 @@ sub_author_updated = '''
       }
     }
   }
-'''
+"""
 
-sub_author_created = '''
+sub_author_created = """
   subscription{
     authorCreated{
       successful
@@ -36,4 +36,4 @@ sub_author_created = '''
       }
     }
   }
-'''
+"""

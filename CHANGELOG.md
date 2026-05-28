@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [3.7.2] - 2026-05-28
+
+- [Changed] Repository-wide `ruff format` pass — formatting only, no behavior change.
+- [Changed] Suppressed two false-positive Bandit `B104` findings on the IPv4-only egress transport (`local_address="0.0.0.0"` in `_update_client_params`) with a justified `# nosec` and explanatory comment; this is an egress source-address bind, not a listening socket.
+- [Changed] Refreshed transitive dependencies within their allowed ranges (`idna` 3.16 → 3.17, `platformdirs` 4.9.6 → 4.10.0); `uv.lock` updated.
+- [Added] Project-specific `AGENTS.md` documenting environment, workflow, code-styling, and design conventions for agent sessions.
+
 ## [3.7.1] - 2026-05-28
 
 - [Fixed] Non-dict payloads after `orjson.loads` (e.g. a server-emitted `null` or array) no longer crash `_sub_routing_loop` with an unhandled `AttributeError` at `message.get('type')` and kill the router thread. A `not isinstance(message, dict)` guard now sets `wss_conn_halted` and triggers the existing reconnect path. (OPS-3485)

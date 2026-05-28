@@ -36,8 +36,8 @@ from pprint import pprint
 
 
 class InvalidMutationException(Exception):
-    """This class is to define the InvalidMutationException
-    """
+    """This class is to define the InvalidMutationException"""
+
     pass
 
 
@@ -99,13 +99,12 @@ class MutationBatch:
 
     """
 
-    def __init__(self, client=None, label='mutation'):
-        """Constructor of the MutatuibBatch object.
-        """
+    def __init__(self, client=None, label="mutation"):
+        """Constructor of the MutatuibBatch object."""
         self.client = client
-        self.start_tag = 'mutation BatchMutation {'
-        self.batch_doc = ''
-        self.close_tag = '}'
+        self.start_tag = "mutation BatchMutation {"
+        self.batch_doc = ""
+        self.close_tag = "}"
         self.label = label
         self.count = 1
 
@@ -129,12 +128,12 @@ class MutationBatch:
         mp = MutationParser(doc)
         valid_doc = mp.parse()
         if not valid_doc:
-            raise InvalidMutationException('Invalid mutation document')
+            raise InvalidMutationException("Invalid mutation document")
         # build batch mutation from extracted tokens
         parsed_doc = mp.content
         for key, value in variables.items():
-            parsed_doc = parsed_doc.replace(f'${key}', mp.format_value(value))
-        self.batch_doc += f'\t{self.label}_{self.count}: {parsed_doc}\n'
+            parsed_doc = parsed_doc.replace(f"${key}", mp.format_value(value))
+        self.batch_doc += f"\t{self.label}_{self.count}: {parsed_doc}\n"
         self.count += 1
 
     def get_doc(self):
@@ -143,7 +142,7 @@ class MutationBatch:
         Returns:
             (string): Returns the full transaction, ready to execute.
         """
-        full_doc = f'''{self.start_tag}\n{self.batch_doc} {self.close_tag}'''
+        full_doc = f"""{self.start_tag}\n{self.batch_doc} {self.close_tag}"""
         return full_doc
 
     def execute(self):
@@ -155,8 +154,8 @@ class MutationBatch:
         error_dict = {}
         data, errors = self.client.mutate(self.get_doc())
         if errors:
-            error_dict['server'] = errors
+            error_dict["server"] = errors
         if data:
             for label, response in data.items():
-                error_dict[label] = response.get('messages', [])
+                error_dict[label] = response.get("messages", [])
         return data, error_dict
