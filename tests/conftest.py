@@ -19,7 +19,7 @@ def query_authors(name=""):
     name_filter = '{name:"' + name + '"}'
     if not name:
         return "query {authors{id}}"
-    authors_query = "query {authors(filter:?){id}}".replace('?', name_filter)
+    authors_query = "query {authors(filter:?){id}}".replace("?", name_filter)
     return authors_query
 
 
@@ -29,30 +29,31 @@ def gql():
     import sys
 
     try:
-        if not os.environ.get('API'):
+        if not os.environ.get("API"):
             raise EnvironmentError
-        if not os.environ.get('WSS'):
+        if not os.environ.get("WSS"):
             raise EnvironmentError
-        if not os.environ.get('TOKEN'):
+        if not os.environ.get("TOKEN"):
             raise EnvironmentError
     except EnvironmentError:
         sys.exit("Check your environment variables")
 
-    post_timeout_str = (os.environ.get('POST_TIMEOUT') or '10')
+    post_timeout_str = os.environ.get("POST_TIMEOUT") or "10"
 
     import httpx
 
     no_keepalive = httpx.Limits(max_keepalive_connections=0)
     gql = GraphQLClient()
-    gql.client_params['limits'] = no_keepalive
-    gql.async_client_params['limits'] = no_keepalive
+    gql.client_params["limits"] = no_keepalive
+    gql.async_client_params["limits"] = no_keepalive
     gql.addEnvironment(
-        'dev',
-        url=os.environ.get('API'),
-        wss=os.environ.get('WSS'),
-        headers={'Authorization': os.environ.get('TOKEN')},
+        "dev",
+        url=os.environ.get("API"),
+        wss=os.environ.get("WSS"),
+        headers={"Authorization": os.environ.get("TOKEN")},
         post_timeout=int(post_timeout_str),
-        default=True)
+        default=True,
+    )
 
     try:
         _, errors = gql.query(query_authors(), flatten=True)
@@ -62,7 +63,6 @@ def gql():
         sys.exit(errors)
 
     try:
-
         _, errors_pau = gql.query(query_authors("Paulinna"))
         _, errors_baruc = gql.query(query_authors("Baruc"))
 

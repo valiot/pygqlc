@@ -1,4 +1,4 @@
-author_activate = '''
+author_activate = """
   mutation {
     upsertAuthor(findBy: {name: "Elon", lastName: "Musk"}, author: { active: true }) {
       successful
@@ -12,9 +12,9 @@ author_activate = '''
       }
     }
   }
-'''
+"""
 
-author_set_active = '''
+author_set_active = """
   mutation SetActive($active: Boolean!){
     upsertAuthor(findBy: {name: "Elon", lastName: "Musk"}, author: { active: $active }) {
       successful
@@ -28,9 +28,9 @@ author_set_active = '''
       }
     }
   }
-'''
+"""
 
-update_any_author_active = '''
+update_any_author_active = """
   mutation SetActive(
     $name: String!
     $active: Boolean!
@@ -54,9 +54,9 @@ update_any_author_active = '''
       }
     }
   }
-'''
+"""
 
-create_author = '''
+create_author = """
   mutation CreateAuthor(
     $name: String!
     $lastName: String!
@@ -80,6 +80,6 @@ create_author = '''
       }
     }
   }
-'''
+"""
 
 bad_author_create = 'mutation {createAuthor(name:"Baruc"){succ}}'

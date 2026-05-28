@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.7.2] - 2026-05-28
+
+- [Fixed] `_new_conn` (called by `subscribe`, reconnect in `_sub_routing_loop`, `resetSubsConnection`) now guards against unset `environment` or `wss=None` (which left `ws_url=None` and triggered `AttributeError` on `.get` or `TypeError` inside `websocket.create_connection` / `parse_url`). Fails gracefully with clean ERROR log and returns False/None; no more thread crashes or "Failed connecting to None". (OPS-3496)
+- [Changed] Ran `uvx ruff format` across tree for consistency (per agent baseline); upgraded optional `valiotlogging` 1.0.0→1.0.1 in lockfile; ran full `uv tree --depth 1 --outdated`, ruff check, bandit, TDD tests.
+
 ## [3.7.1] - 2026-05-28
 
 - [Fixed] Non-dict payloads after `orjson.loads` (e.g. a server-emitted `null` or array) no longer crash `_sub_routing_loop` with an unhandled `AttributeError` at `message.get('type')` and kill the router thread. A `not isinstance(message, dict)` guard now sets `wss_conn_halted` and triggers the existing reconnect path. (OPS-3485)

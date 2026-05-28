@@ -1,11 +1,12 @@
-'''GraphQL client implementation
+"""GraphQL client implementation
 
 This module has the general purpose of defining the GraphQLClient class
 and all its methods.
 
 GQLResponse (type variable): [data[field(string)], errors[message(string),
  field?(string)]
-'''
+"""
+
 import traceback
 import time
 import threading
@@ -17,16 +18,11 @@ import orjson
 import logging
 from pygqlc.helper_modules.Singleton import Singleton
 from pygqlc.logging import log, LogLevel
-from tenacity import (
-    retry,
-    retry_if_result,
-    stop_after_attempt,
-    wait_random
-)
+from tenacity import retry, retry_if_result, stop_after_attempt, wait_random
 from .MutationBatch import MutationBatch
 
 # Set httpx logger to WARNING level to reduce HTTP request logs
-logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 GQL_WS_SUBPROTOCOL = "graphql-transport-ws"
 
@@ -57,7 +53,7 @@ class GQLResponseException(Exception):
         status_code: int,
         query: str,
         variables: dict | None = None,
-        response_body: str = '',
+        response_body: str = "",
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -68,11 +64,11 @@ class GQLResponseException(Exception):
 
 
 def is_ws_payloadErrors_msg(message):
-    return bool(py_.get(message, 'payload.errors'))
+    return bool(py_.get(message, "payload.errors"))
 
 
 def is_ws_connection_init_msg(message):
-    data = py_.get(message, 'payload.data', {})
+    data = py_.get(message, "payload.data", {})
     if not data:
         return False  # may have an error, but is not connection init message
     keys = list(data.keys())
@@ -159,8 +155,7 @@ def data_flatten(data, single_child=False):
     try:
         # For cacheable data structures, use the cached version with orjson
         # orjson doesn't have sort_keys parameter, but has OPT_SORT_KEYS option
-        data_str = orjson.dumps(
-            data, option=orjson.OPT_SORT_KEYS).decode('utf-8')
+        data_str = orjson.dumps(data, option=orjson.OPT_SORT_KEYS).decode("utf-8")
         return _data_flatten_cacheable(data_str, single_child)
     except (TypeError, ValueError):
         # Fall back to direct implementation for non-serializable data
@@ -186,12 +181,12 @@ def safe_pop(data, index=0, default=None):
 
 
 # Prepare common JSON structures for reuse
-PING_JSON = orjson.dumps({'type': 'ping'}).decode('utf-8')
-CONNECTION_ACK_TYPE = 'connection_ack'
-PONG_TYPE = 'pong'
-NEXT_TYPE = 'next'
-ERROR_TYPE = 'error'
-COMPLETE_TYPE = 'complete'
+PING_JSON = orjson.dumps({"type": "ping"}).decode("utf-8")
+CONNECTION_ACK_TYPE = "connection_ack"
+PONG_TYPE = "pong"
+NEXT_TYPE = "next"
+ERROR_TYPE = "error"
+COMPLETE_TYPE = "complete"
 
 
 class GraphQLClient(metaclass=Singleton):
@@ -240,14 +235,10 @@ class GraphQLClient(metaclass=Singleton):
     """
 
     # Reusable headers
-    DEFAULT_HEADERS = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-    }
+    DEFAULT_HEADERS = {"Accept": "application/json", "Content-Type": "application/json"}
 
     def __init__(self):
-        """Constructor of the GraphQlClient object.
-        """
+        """Constructor of the GraphQlClient object."""
         # * query/mutation related attributes
         self.environments = {}
         self.environment = None
@@ -323,7 +314,7 @@ class GraphQLClient(metaclass=Singleton):
         query: str,
         variables: dict | None = None,
         flatten: bool = True,
-        single_child: bool = False
+        single_child: bool = False,
     ) -> tuple:
         """This function makes a query transaction to the actual environment.
 
@@ -343,14 +334,14 @@ class GraphQLClient(metaclass=Singleton):
         try:
             response = self.execute(query, variables)
             if flatten:
-                data = response.get('data', None)
+                data = response.get("data", None)
             else:
                 data = response
-            errors = response.get('errors', [])
+            errors = response.get("errors", [])
             if flatten and data is not None:
                 data = data_flatten(data, single_child=single_child)
         except Exception as e:
-            errors = [{'message': str(e)}]
+            errors = [{"message": str(e)}]
         return data, errors
 
     # * Query high level implementation
@@ -382,7 +373,9 @@ class GraphQLClient(metaclass=Singleton):
         return messages
 
     # * Mutation high level implementation
-    def mutate(self, mutation: str, variables: dict | None = None, flatten: bool = True) -> tuple:
+    def mutate(
+        self, mutation: str, variables: dict | None = None, flatten: bool = True
+    ) -> tuple:
         """This function makes a mutation transaction to the actual environment.
 
         Args:
@@ -400,13 +393,13 @@ class GraphQLClient(metaclass=Singleton):
         try:
             response = self.execute(mutation, variables)
         except Exception as e:
-            errors = [{'message': str(e)}]
+            errors = [{"message": str(e)}]
         finally:
-            response_errors = response.get('errors', [])
+            response_errors = response.get("errors", [])
             if response_errors:
                 errors.extend(response_errors)
             if not errors:
-                data = response.get('data', None)
+                data = response.get("data", None)
                 if flatten and data:
                     data = data_flatten(data)
                     data_messages = self._get_messages(data)
@@ -423,7 +416,7 @@ class GraphQLClient(metaclass=Singleton):
         callback=None,
         flatten=True,
         _id=None,
-        on_error_callback=None
+        on_error_callback=None,
     ):
         """This functions makes a subscription to the actual environment.
 
@@ -442,49 +435,54 @@ class GraphQLClient(metaclass=Singleton):
         # ! initialize websocket only once
         if not self._conn:
             if not self._new_conn():
-                log(LogLevel.ERROR, 'Error creating WSS connection for subscription')
+                log(LogLevel.ERROR, "Error creating WSS connection for subscription")
                 return None
 
         _cb = callback if callback is not None else self._on_message
         _ecb = on_error_callback
         _id = self._registerSub(_id)
-        self.subs[_id].update({
-            'thread': threading.Thread(target=self._subscription_loop, args=(_cb, _id, _ecb)),
-            'flatten': flatten,
-            'queue': [],
-            'runs': 0,
-            'query': query,
-            'variables': variables,
-            'callback': callback,
-            'on_error_callback': on_error_callback
-        })
-        self.subs[_id]['thread'].start()
-        payload = {'query': query, 'variables': variables}
+        self.subs[_id].update(
+            {
+                "thread": threading.Thread(
+                    target=self._subscription_loop, args=(_cb, _id, _ecb)
+                ),
+                "flatten": flatten,
+                "queue": [],
+                "runs": 0,
+                "query": query,
+                "variables": variables,
+                "callback": callback,
+                "on_error_callback": on_error_callback,
+            }
+        )
+        self.subs[_id]["thread"].start()
+        payload = {"query": query, "variables": variables}
         self._start(payload, _id)
         # ! Create unsubscribe function for this specific thread:
 
         def unsubscribe():
             return self._unsubscribe(_id)
-        self.subs[_id].update({'unsub': unsubscribe})
+
+        self.subs[_id].update({"unsub": unsubscribe})
         return unsubscribe
 
     def _unsubscribe(self, _id):
         sub = self.subs.get(_id)
         if not sub:
-            log(LogLevel.WARNING, 'Subscription already cleared')
+            log(LogLevel.WARNING, "Subscription already cleared")
             return
         self.unsubscribing = True
-        sub['kill'] = True
+        sub["kill"] = True
         try:
             self._stop(_id)
         except BrokenPipeError as e:
-            log(LogLevel.WARNING, 'WSS Pipe broken, nothing to stop')
-        sub['thread'].join()
-        sub['running'] = False
+            log(LogLevel.WARNING, "WSS Pipe broken, nothing to stop")
+        sub["thread"].join()
+        sub["running"] = False
         self.unsubscribing = False
 
     def _sub_routing_loop(self):
-        log(LogLevel.SUCCESS, 'first subscription, starting routing loop')
+        log(LogLevel.SUCCESS, "first subscription, starting routing loop")
         last_reconnect_attempt = 0
         reconnect_delay = 1.0
 
@@ -493,14 +491,18 @@ class GraphQLClient(metaclass=Singleton):
                 # Rate limit reconnection attempts
                 current_time = time.time()
                 if current_time - last_reconnect_attempt >= reconnect_delay:
-                    log(LogLevel.WARNING,
-                        'Connection halted, attempting reconnection...')
+                    log(
+                        LogLevel.WARNING,
+                        "Connection halted, attempting reconnection...",
+                    )
                     if self._new_conn():
                         self.wss_conn_halted = False
-                        log(LogLevel.SUCCESS,
-                            'WSS Reconnection succeeded, attempting resubscription to lost subs')
+                        log(
+                            LogLevel.SUCCESS,
+                            "WSS Reconnection succeeded, attempting resubscription to lost subs",
+                        )
                         self._resubscribe_all()
-                        log(LogLevel.INFO, 'finished resubscriptions')
+                        log(LogLevel.INFO, "finished resubscriptions")
                         reconnect_delay = 1.0  # Reset delay on success
                     else:
                         # Use exponential backoff for reconnection attempts (up to 5 seconds)
@@ -516,11 +518,11 @@ class GraphQLClient(metaclass=Singleton):
             # Process terminated subscriptions
             to_del = []
             for sub_id, sub in self.subs.items():
-                if (sub['kill'] or not sub['running']) and not sub['starting']:
+                if (sub["kill"] or not sub["running"]) and not sub["starting"]:
                     # Don't block if thread is already dead
-                    if sub['thread'].is_alive():
+                    if sub["thread"].is_alive():
                         # Use timeout to avoid blocking indefinitely
-                        sub['thread'].join(0.1)
+                        sub["thread"].join(0.1)
                     to_del.append(sub_id)
 
             for sub_id in to_del:
@@ -537,56 +539,59 @@ class GraphQLClient(metaclass=Singleton):
             except Exception as e:
                 if not self.closing:
                     if isinstance(e, TRANSIENT_WS_ERRORS):
-                        log(LogLevel.WARNING, 'WSS connection reset or closed by peer')
+                        log(LogLevel.WARNING, "WSS connection reset or closed by peer")
                     else:
-                        log(LogLevel.ERROR, 'Some error trying to receive WSS')
+                        log(LogLevel.ERROR, "Some error trying to receive WSS")
                     self.wss_conn_halted = True
                 continue
 
             if not isinstance(message, dict):
                 if not self.closing:
-                    log(LogLevel.WARNING, 'invalid WSS message, reconnecting')
+                    log(LogLevel.WARNING, "invalid WSS message, reconnecting")
                     self.wss_conn_halted = True
                 continue
 
-            message_type = message.get('type')
-            if 'id' in message:
+            message_type = message.get("type")
+            if "id" in message:
                 # if the message has an ID request, it will be handled by the _subscription_loop
-                _id = message['id']
+                _id = message["id"]
                 active_sub = self.subs.get(_id)
                 # the connection may not be active due to:
                 # 1. server error (incorrect ID sent)
                 # 2. race condition (we closed connection, but a message was already on its way)
                 if active_sub:
-                    active_sub['queue'].append(message)
+                    active_sub["queue"].append(message)
             elif message_type == CONNECTION_ACK_TYPE:
                 pass  # Connection Ack with the server
             elif message_type == PONG_TYPE:
                 pass
             else:
-                log(LogLevel.WARNING, f'unknown msg type: {message}')
+                log(LogLevel.WARNING, f"unknown msg type: {message}")
 
             # Use non-blocking sleep
             time.sleep(self.poll_interval)
 
     def _resubscribe_all(self):
         # Copy subscription info before killing threads
-        old_subs = {sub_id: {
-            'query': sub.get('query'),
-            'variables': sub.get('variables'),
-            'callback': sub.get('callback'),
-            'on_error_callback': sub.get('on_error_callback'),
-            'flatten': sub.get('flatten'),
-        } for sub_id, sub in self.subs.items()}
+        old_subs = {
+            sub_id: {
+                "query": sub.get("query"),
+                "variables": sub.get("variables"),
+                "callback": sub.get("callback"),
+                "on_error_callback": sub.get("on_error_callback"),
+                "flatten": sub.get("flatten"),
+            }
+            for sub_id, sub in self.subs.items()
+        }
 
         # First, signal all threads to stop
         for sub in self.subs.values():
-            sub['kill'] = True
+            sub["kill"] = True
 
         # Then join all threads with timeout to avoid blocking indefinitely
         for sub_id, sub in self.subs.items():
-            if sub['thread'].is_alive():
-                sub['thread'].join(0.5)
+            if sub["thread"].is_alive():
+                sub["thread"].join(0.5)
 
         # Clear existing subscriptions
         self.subs.clear()
@@ -594,44 +599,44 @@ class GraphQLClient(metaclass=Singleton):
         # Resubscribe using the saved information
         for sub_id, sub_info in old_subs.items():
             self.subscribe(
-                query=sub_info['query'],
-                variables=sub_info['variables'],
-                callback=sub_info['callback'],
-                on_error_callback=sub_info['on_error_callback'],
-                flatten=sub_info['flatten'],
+                query=sub_info["query"],
+                variables=sub_info["variables"],
+                callback=sub_info["callback"],
+                on_error_callback=sub_info["on_error_callback"],
+                flatten=sub_info["flatten"],
                 _id=sub_id,
             )
 
     def _subscription_loop(self, _cb, _id, _ecb):
-        self.subs[_id].update({'running': True, 'starting': False})
-        while self.subs[_id]['running']:
-            if self.subs[_id]['kill']:
-                log(LogLevel.INFO,
-                    f'stopping subscription id={_id} on Unsubscribe')
+        self.subs[_id].update({"running": True, "starting": False})
+        while self.subs[_id]["running"]:
+            if self.subs[_id]["kill"]:
+                log(LogLevel.INFO, f"stopping subscription id={_id} on Unsubscribe")
                 break
 
             # Get message without copying the queue
-            message = safe_pop(self.subs[_id]['queue'])
+            message = safe_pop(self.subs[_id]["queue"])
             if not message:
                 time.sleep(self.poll_interval)
                 continue
 
             # Message type handling
-            message_type = message.get('type')
+            message_type = message.get("type")
             if message_type == NEXT_TYPE:
                 pass  # continue with payload handling
             elif message_type == ERROR_TYPE:
                 if _ecb:
                     _ecb(message)
-                log(LogLevel.WARNING,
-                    f'stopping subscription id={_id} on {message_type}')
+                log(
+                    LogLevel.WARNING,
+                    f"stopping subscription id={_id} on {message_type}",
+                )
                 break
             elif message_type == COMPLETE_TYPE:
-                log(LogLevel.INFO,
-                    f'stopping subscription id={_id} on {message_type}')
+                log(LogLevel.INFO, f"stopping subscription id={_id} on {message_type}")
                 break
             else:
-                log(LogLevel.WARNING, f'unknown msg type: {message}')
+                log(LogLevel.WARNING, f"unknown msg type: {message}")
                 continue
 
             # Payload handling
@@ -639,8 +644,8 @@ class GraphQLClient(metaclass=Singleton):
                 if _ecb:
                     _ecb(message)
                     continue
-                log(LogLevel.ERROR, 'Subscription message has payload Errors')
-                log(LogLevel.ERROR, f'{message}')
+                log(LogLevel.ERROR, "Subscription message has payload Errors")
+                log(LogLevel.ERROR, f"{message}")
             elif is_ws_connection_init_msg(message):
                 # Subscription successfully initialized
                 pass
@@ -650,52 +655,67 @@ class GraphQLClient(metaclass=Singleton):
                 try:
                     _cb(gql_msg)  # execute callback function
                     # Increment counter without locking
-                    self.subs[_id]['runs'] += 1
+                    self.subs[_id]["runs"] += 1
                 except Exception as _e:
-                    log(LogLevel.ERROR, f'Error on subscription callback')
-                    sub_query = self.subs[_id].get('query')
-                    sub_variables = self.subs[_id].get('variables')
+                    log(LogLevel.ERROR, f"Error on subscription callback")
+                    sub_query = self.subs[_id].get("query")
+                    sub_variables = self.subs[_id].get("variables")
                     if sub_query:
-                        log(LogLevel.ERROR,
-                            f'subscription document: \n\t{sub_query}')
+                        log(LogLevel.ERROR, f"subscription document: \n\t{sub_query}")
                     if sub_variables:
-                        log(LogLevel.ERROR,
-                            f'subscription variables: \n\t{sub_variables}')
+                        log(
+                            LogLevel.ERROR,
+                            f"subscription variables: \n\t{sub_variables}",
+                        )
                     log(LogLevel.ERROR, traceback.format_exc())
 
         # Subscription stopped, update state atomically
-        self.subs[_id].update({'running': False, 'kill': True})
-        log(LogLevel.INFO, f'Subscription id={_id} stopped')
+        self.subs[_id].update({"running": False, "kill": True})
+        log(LogLevel.INFO, f"Subscription id={_id} stopped")
 
     def _clean_sub_message(self, _id, message):
-        data = py_.get(message, 'payload', {})
-        return data_flatten(data) if self.subs[_id]['flatten'] else data
+        data = py_.get(message, "payload", {})
+        return data_flatten(data) if self.subs[_id]["flatten"] else data
 
     def _new_conn(self):
-        env = self.environments.get(self.environment, None)
-        self.ws_url = env.get('wss')
+        if not self.environment:
+            log(LogLevel.ERROR, "No environment set; cannot establish WSS connection")
+            return False
+        env = self.environments.get(self.environment)
+        if not env:
+            log(LogLevel.ERROR, f"Environment {self.environment} not registered")
+            return False
+        ws_url = env.get("wss")
+        if not ws_url:
+            log(
+                LogLevel.ERROR,
+                f"No WSS URL configured for environment {self.environment}",
+            )
+            return False
+        self.ws_url = ws_url
         try:
             self._conn = websocket.create_connection(
-                self.ws_url, subprotocols=[GQL_WS_SUBPROTOCOL])
+                self.ws_url, subprotocols=[GQL_WS_SUBPROTOCOL]
+            )
             self._conn_init()
             return True
         except Exception as e:
-            log(LogLevel.ERROR, f'Failed connecting to {self.ws_url}')
+            log(LogLevel.ERROR, f"Failed connecting to {self.ws_url}")
             return False
 
     def close(self):
         """This function ends and resets all subscriptions and related attributes
-         to their default values.
+        to their default values.
         """
         # ! ask subscription message router to stop
         self.closing = True
         if not self.sub_router_thread:
-            log(LogLevel.INFO, 'connection not stablished, nothing to close')
+            log(LogLevel.INFO, "connection not stablished, nothing to close")
             self.closing = False
             self._close()
             return
         for sub in self.subs.values():
-            sub['unsub']()
+            sub["unsub"]()
         self._conn.close()
         self.sub_router_thread.join()
         self.sub_pingpong_thread.join()
@@ -708,24 +728,20 @@ class GraphQLClient(metaclass=Singleton):
         self._close()
 
     def _on_message(self, message):
-        '''Dummy callback for subscription'''
+        """Dummy callback for subscription"""
         # Message handling happens elsewhere - no need to print here
         pass
 
     def _conn_init(self):
         env = self.environments.get(self.environment, None)
-        headers = env.get('headers', {})
-        payload = {
-            'type': 'connection_init',
-            'payload': headers
-        }
-        self._conn.send(orjson.dumps(payload).decode('utf-8'))
+        headers = env.get("headers", {})
+        payload = {"type": "connection_init", "payload": headers}
+        self._conn.send(orjson.dumps(payload).decode("utf-8"))
         self._waiting_connection_ack()
         self._conn.settimeout(self.websocket_timeout)
 
         if not self.sub_router_thread:
-            self.sub_router_thread = threading.Thread(
-                target=self._sub_routing_loop)
+            self.sub_router_thread = threading.Thread(target=self._sub_routing_loop)
         if not self.sub_router_thread.is_alive():
             self.sub_router_thread.start()
         if not self.sub_pingpong_thread:
@@ -737,7 +753,7 @@ class GraphQLClient(metaclass=Singleton):
         self._conn.settimeout(self.ack_timeout)
         # set timeout to raise Exception websocket.WebSocketTimeoutException
         message = orjson.loads(self._conn.recv())
-        if message['type'] == CONNECTION_ACK_TYPE:
+        if message["type"] == CONNECTION_ACK_TYPE:
             pass  # Connection Ack with the server
 
     def _ping_pong(self):
@@ -758,24 +774,26 @@ class GraphQLClient(metaclass=Singleton):
                     # No need to log normal ping operations
                 except Exception as e:
                     if not self.closing:
-                        log(LogLevel.ERROR,
-                            'error trying to send ping, WSS Pipe is broken')
+                        log(
+                            LogLevel.ERROR,
+                            "error trying to send ping, WSS Pipe is broken",
+                        )
                         self.wss_conn_halted = True
 
     def _registerSub(self, _id=None):
         if not _id:
             self.sub_counter += 1
             _id = str(self.sub_counter)
-        self.subs[_id] = {'running': False, 'kill': False, 'starting': True}
+        self.subs[_id] = {"running": False, "kill": False, "starting": True}
         return _id
 
     def _start(self, payload, _id):
-        frame = {'id': _id, 'type': 'subscribe', 'payload': payload}
-        self._conn.send(orjson.dumps(frame).decode('utf-8'))
+        frame = {"id": _id, "type": "subscribe", "payload": payload}
+        self._conn.send(orjson.dumps(frame).decode("utf-8"))
 
     def _stop(self, _id):
-        payload = {'id': _id, 'type': 'complete'}
-        self._conn.send(orjson.dumps(payload).decode('utf-8'))
+        payload = {"id": _id, "type": "complete"}
+        self._conn.send(orjson.dumps(payload).decode("utf-8"))
 
     def resetSubsConnection(self):
         """This function resets all subscriptions connections.
@@ -784,26 +802,30 @@ class GraphQLClient(metaclass=Singleton):
             (boolean): Returns if the reconnection has been possible.
         """
         if not self.sub_router_thread:
-            log(LogLevel.INFO, 'connection not stablished, nothing to reset')
+            log(LogLevel.INFO, "connection not stablished, nothing to reset")
             return False
-        if self.sub_router_thread.is_alive():  # check that _sub_routing_loop() is running
+        if (
+            self.sub_router_thread.is_alive()
+        ):  # check that _sub_routing_loop() is running
             self._conn.close()  # forces connection halted (wss_conn_halted)
             return True
         # in case for some reason _sub_routing_loop() is not running
         if self._new_conn():
-            log(LogLevel.INFO,
-                'WSS Reconnection succeeded, attempting resubscription to lost subs')
+            log(
+                LogLevel.INFO,
+                "WSS Reconnection succeeded, attempting resubscription to lost subs",
+            )
             self._resubscribe_all()
-            log(LogLevel.INFO, 'finished resubscriptions')
+            log(LogLevel.INFO, "finished resubscriptions")
             return True
         else:
-            log(LogLevel.ERROR, 'Reconnection has not been possible')
+            log(LogLevel.ERROR, "Reconnection has not been possible")
             return False
 
     # * END SUBSCRIPTION functions ******************************
 
     # * BATCH functions *****************************************
-    def batchMutate(self, label='mutation'):
+    def batchMutate(self, label="mutation"):
         """This fuction makes a batchs of mutation transactions.
 
         Args:
@@ -814,7 +836,7 @@ class GraphQLClient(metaclass=Singleton):
         """
         return MutationBatch(client=self, label=label)
 
-    def batchQuery(self, label='query'):
+    def batchQuery(self, label="query"):
         """This fuction makes a batchs of query transactions.
 
         Args:
@@ -836,7 +858,7 @@ class GraphQLClient(metaclass=Singleton):
         default=False,
         timeoutWebsocket=60,
         post_timeout=60,
-        ipv4_only=False
+        ipv4_only=False,
     ):
         """This fuction adds a new environment to the instance.
 
@@ -856,11 +878,11 @@ class GraphQLClient(metaclass=Singleton):
              Helps with slow connections on networks with problematic IPv6. Defaults to False.
         """
         self.environments[name] = {
-            'url': url,
-            'wss': wss,
-            'headers': headers.copy(),
-            'post_timeout': post_timeout,
-            'ipv4_only': ipv4_only
+            "url": url,
+            "wss": wss,
+            "headers": headers.copy(),
+            "post_timeout": post_timeout,
+            "ipv4_only": ipv4_only,
         }
 
         if ipv4_only:
@@ -874,9 +896,11 @@ class GraphQLClient(metaclass=Singleton):
         """Update HTTP client parameters based on IPv4 setting"""
         if ipv4_only:
             self.client_params["transport"] = httpx.HTTPTransport(
-                local_address="0.0.0.0")
+                local_address="0.0.0.0"
+            )
             self.async_client_params["transport"] = httpx.AsyncHTTPTransport(
-                local_address="0.0.0.0")
+                local_address="0.0.0.0"
+            )
         else:
             # Remove transport if it exists
             self.client_params.pop("transport", None)
@@ -892,7 +916,7 @@ class GraphQLClient(metaclass=Singleton):
         # if environment is not selected, use current environment
         if not environment:
             environment = self.environment
-        self.environments[environment]['url'] = url
+        self.environments[environment]["url"] = url
 
     def setWss(self, environment=None, url=None):
         """This function sets a new WSS to an existing environment.
@@ -904,7 +928,7 @@ class GraphQLClient(metaclass=Singleton):
         # if environment is not selected, use current environment
         if not environment:
             environment = self.environment
-        self.environments[environment]['wss'] = url
+        self.environments[environment]["wss"] = url
 
     def addHeader(self, environment=None, header={}):
         """This function updates the header of an existing environment.
@@ -916,7 +940,7 @@ class GraphQLClient(metaclass=Singleton):
         # if environment is not selected, use current environment
         if not environment:
             environment = self.environment
-        self.environments[environment]['headers'].update(header)
+        self.environments[environment]["headers"].update(header)
 
     def setEnvironment(self, name):
         """This functions sets the actual environment of the instance.
@@ -929,11 +953,11 @@ class GraphQLClient(metaclass=Singleton):
         """
         env = self.environments.get(name)
         if not env:
-            raise Exception(f'selected environment not set ({name})')
+            raise Exception(f"selected environment not set ({name})")
         self.environment = name
 
         # Update client parameters based on environment settings
-        ipv4_only = env.get('ipv4_only', False)
+        ipv4_only = env.get("ipv4_only", False)
         self._update_client_params(ipv4_only)
 
     def setPostTimeout(self, environment=None, post_timeout=60):
@@ -945,7 +969,7 @@ class GraphQLClient(metaclass=Singleton):
         # if environment is not selected, use current environment
         if not environment:
             environment = self.environment
-        self.environments[environment]['post_timeout'] = post_timeout
+        self.environments[environment]["post_timeout"] = post_timeout
 
     def setTimeoutWebsocket(self, seconds):
         """This function sets the webscoket's timeout.
@@ -960,7 +984,7 @@ class GraphQLClient(metaclass=Singleton):
     # * LOW LEVEL METHODS ----------------------------------
     def _get_http_client(self):
         """Get a thread-local HTTP client to improve performance with connection pooling"""
-        client = getattr(self._thread_local, 'client', None)
+        client = getattr(self._thread_local, "client", None)
         if client is None or client.is_closed:
             client = httpx.Client(**self.client_params)
             self._thread_local.client = client
@@ -981,17 +1005,13 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             dict: Raw GraphQLResponse.
         """
-        data = {
-            'query': query,
-            'variables': variables
-        }
+        data = {"query": query, "variables": variables}
         env = self.environments.get(self.environment)
         if not env:
-            raise Exception(
-                f'cannot execute query without setting an environment')
+            raise Exception(f"cannot execute query without setting an environment")
 
         headers = self.DEFAULT_HEADERS.copy()
-        env_headers = env.get('headers')
+        env_headers = env.get("headers")
         if env_headers:
             headers.update(env_headers)
 
@@ -999,20 +1019,20 @@ class GraphQLClient(metaclass=Singleton):
         try:
             client = self._get_http_client()
             response = client.post(
-                env['url'],
+                env["url"],
                 json=data,
                 headers=headers,
-                timeout=float(env.get('post_timeout', 60))
+                timeout=float(env.get("post_timeout", 60)),
             )
         except Exception as _e:
             # If connection fails, create a new client and retry
             self._thread_local.client = httpx.Client(**self.client_params)
             client = self._thread_local.client
             response = client.post(
-                env['url'],
+                env["url"],
                 json=data,
                 headers=headers,
-                timeout=float(env.get('post_timeout', 60))
+                timeout=float(env.get("post_timeout", 60)),
             )
 
         if response.status_code == 200:
@@ -1087,17 +1107,13 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             dict: Raw GraphQLResponse.
         """
-        data = {
-            'query': query,
-            'variables': variables
-        }
+        data = {"query": query, "variables": variables}
         env = self.environments.get(self.environment)
         if not env:
-            raise Exception(
-                f'cannot execute query without setting an environment')
+            raise Exception(f"cannot execute query without setting an environment")
 
         headers = self.DEFAULT_HEADERS.copy()
-        env_headers = env.get('headers')
+        env_headers = env.get("headers")
         if env_headers:
             headers.update(env_headers)
 
@@ -1107,10 +1123,10 @@ class GraphQLClient(metaclass=Singleton):
         try:
             # Make the actual request
             response = await client.post(
-                env['url'],
+                env["url"],
                 json=data,
                 headers=headers,
-                timeout=float(env.get('post_timeout', 60))
+                timeout=float(env.get("post_timeout", 60)),
             )
         except (httpx.RequestError, RuntimeError) as e:
             # Check if this is an event loop issue or a network issue
@@ -1121,10 +1137,10 @@ class GraphQLClient(metaclass=Singleton):
                 # Try again with a new client
                 client = await self._get_async_client()
                 response = await client.post(
-                    env['url'],
+                    env["url"],
                     json=data,
                     headers=headers,
-                    timeout=float(env.get('post_timeout', 60))
+                    timeout=float(env.get("post_timeout", 60)),
                 )
             else:
                 # Some other request error, re-raise
@@ -1151,7 +1167,7 @@ class GraphQLClient(metaclass=Singleton):
         query: str,
         variables: dict | None = None,
         flatten: bool = True,
-        single_child: bool = False
+        single_child: bool = False,
     ) -> tuple:
         """Async version of query method that makes a query transaction to the actual environment.
 
@@ -1171,14 +1187,14 @@ class GraphQLClient(metaclass=Singleton):
         try:
             response = await self.async_execute(query, variables)
             if flatten:
-                data = response.get('data', None)
+                data = response.get("data", None)
             else:
                 data = response
-            errors = response.get('errors', [])
+            errors = response.get("errors", [])
             if flatten and data is not None:
                 data = data_flatten(data, single_child=single_child)
         except Exception as e:
-            errors = [{'message': str(e)}]
+            errors = [{"message": str(e)}]
         return data, errors
 
     async def async_query_one(self, query: str, variables: dict | None = None) -> tuple:
@@ -1194,10 +1210,7 @@ class GraphQLClient(metaclass=Singleton):
         return await self.async_query(query, variables, flatten=True, single_child=True)
 
     async def async_mutate(
-            self,
-            mutation: str,
-            variables: dict | None = None,
-            flatten: bool = True
+        self, mutation: str, variables: dict | None = None, flatten: bool = True
     ) -> tuple:
         """Async version of mutate method that makes a mutation transaction
         to the current environment.
@@ -1217,13 +1230,13 @@ class GraphQLClient(metaclass=Singleton):
         try:
             response = await self.async_execute(mutation, variables)
         except Exception as e:
-            errors = [{'message': str(e)}]
+            errors = [{"message": str(e)}]
         finally:
-            response_errors = response.get('errors', [])
+            response_errors = response.get("errors", [])
             if response_errors:
                 errors.extend(response_errors)
             if not errors:
-                data = response.get('data', None)
+                data = response.get("data", None)
                 if flatten and data:
                     data = data_flatten(data)
                     data_messages = self._get_messages(data)
@@ -1257,8 +1270,7 @@ class GraphQLClient(metaclass=Singleton):
                         await self._async_client.aclose()
             except Exception as e:  # pylint: disable=broad-except
                 # If closing fails, log but continue
-                log(LogLevel.WARNING,
-                    f"Warning: Error closing async client: {str(e)}")
+                log(LogLevel.WARNING, f"Warning: Error closing async client: {str(e)}")
             finally:
                 # Always set to None to allow garbage collection and recreation
                 self._async_client = None
@@ -1266,7 +1278,7 @@ class GraphQLClient(metaclass=Singleton):
     def _close(self):
         """Explicitly close resources"""
         # Clean up synchronous client
-        if hasattr(self, '_thread_local') and hasattr(self._thread_local, 'client'):
+        if hasattr(self, "_thread_local") and hasattr(self._thread_local, "client"):
             try:
                 self._thread_local.client.close()
             except Exception:  # pylint: disable=broad-except
@@ -1275,7 +1287,7 @@ class GraphQLClient(metaclass=Singleton):
         # For async client, we can't use await in close(), so just set to None
         # to allow garbage collection. We don't try to close it properly here
         # as that would require an event loop, which might be closed already.
-        if hasattr(self, '_async_client') and self._async_client is not None:
+        if hasattr(self, "_async_client") and self._async_client is not None:
             self._async_client = None
 
     def __del__(self):
