@@ -30,6 +30,14 @@ logging.getLogger('httpx').setLevel(logging.WARNING)
 
 GQL_WS_SUBPROTOCOL = "graphql-transport-ws"
 
+# Transient websocket errors that should trigger a calm reconnect (WARNING), not an ERROR+traceback.
+TRANSIENT_WS_ERRORS = (
+    ConnectionResetError,
+    BrokenPipeError,
+    ConnectionAbortedError,
+    websocket.WebSocketConnectionClosedException,
+)
+
 # * Custom Exception class for GraphQL responses
 
 
@@ -528,7 +536,7 @@ class GraphQLClient(metaclass=Singleton):
                 continue
             except Exception as e:
                 if not self.closing:
-                    if isinstance(e, (ConnectionResetError, BrokenPipeError, ConnectionAbortedError, websocket.WebSocketConnectionClosedException)):
+                    if isinstance(e, TRANSIENT_WS_ERRORS):
                         log(LogLevel.WARNING, 'WSS connection reset or closed by peer')
                     else:
                         log(LogLevel.ERROR, 'Some error trying to receive WSS')
