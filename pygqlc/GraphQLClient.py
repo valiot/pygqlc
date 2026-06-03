@@ -758,9 +758,26 @@ class GraphQLClient(metaclass=Singleton):
     def _waiting_connection_ack(self):
         self._conn.settimeout(self.ack_timeout)
         # set timeout to raise Exception websocket.WebSocketTimeoutException
-        message = orjson.loads(self._conn.recv())
+        raw = self._conn.recv()
+        message = orjson.loads(raw)
+        if not isinstance(message, dict) or "type" not in message:
+            raise GQLResponseException(
+                message=f"Invalid connection ack message, expected dict with 'type': {message}",
+                status_code=0,
+                query="connection_init",
+                variables=None,
+                response_body=str(raw),
+            )
         if message["type"] == CONNECTION_ACK_TYPE:
             pass  # Connection Ack with the server
+        else:
+            raise GQLResponseException(
+                message=f"Connection init did not receive ack, got: {message}",
+                status_code=0,
+                query="connection_init",
+                variables=None,
+                response_body=str(raw),
+            )
 
     def _ping_pong(self):
         self.pingTimer = time.time()
