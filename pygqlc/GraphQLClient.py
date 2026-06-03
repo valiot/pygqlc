@@ -36,6 +36,7 @@ TRANSIENT_WS_ERRORS = (
     BrokenPipeError,
     ConnectionAbortedError,
     websocket.WebSocketConnectionClosedException,
+    orjson.JSONDecodeError,
 )
 
 # * Custom Exception class for GraphQL responses

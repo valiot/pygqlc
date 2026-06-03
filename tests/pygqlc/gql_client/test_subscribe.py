@@ -299,3 +299,28 @@ def test_new_conn_returns_false_when_no_environment():
     assert result is False
     assert any(level == LogLevel.ERROR for level, _ in records)
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_sub_routing_loop_empty_recv_logged_as_warning(routing_client):
+    """OPS-3597: empty recv() result (zero-length WSS frame -> orjson.loads(b'')) must
+    not crash the routing loop with JSONDecodeError; treat as transient close (like
+    ConnectionResetError), log at WARNING, set halted, and trigger reconnect path."""
+    gql = routing_client
+    gql._conn.recv.return_value = b""
+
+    with (
+        patch.object(gql, "_new_conn", side_effect=_stop_loop_on(gql)) as new_conn,
+        _capture_logs() as records,
+    ):
+        _run_routing_loop(gql)
+
+    assert gql.wss_conn_halted is True
+    assert new_conn.called
+    assert any(
+        level == LogLevel.WARNING and "reset or closed by peer" in msg
+        for level, msg in records
+    )
+    assert not any(
+        level == LogLevel.ERROR and "Some error trying to receive WSS" in msg
+        for level, msg in records
+    )
