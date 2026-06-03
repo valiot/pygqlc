@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pygqlc import GraphQLClient
+from pygqlc import GraphQLClient, GQLResponseException
 from pygqlc.helper_modules.Singleton import Singleton
 from pygqlc.logging import LogLevel, get_logger, set_logger
 
@@ -299,3 +299,31 @@ def test_new_conn_returns_false_when_no_environment():
     assert result is False
     assert any(level == LogLevel.ERROR for level, _ in records)
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_waiting_connection_ack_defensive_no_keyerror_on_bad_ack(routing_client):
+    """OPS-3613: _waiting_connection_ack must not raise KeyError on message["type"]
+    when the server sends non-dict payload (e.g. null) or dict without "type" key
+    for the initial connection_ack after connection_init. This is the direct
+    subscript on untrusted WS data in the subscription path (analogous to
+    cq['name'] non-defensive access in callbacks). We raise controlled
+    GQLResponseException instead so callers (e.g. _new_conn) can handle cleanly.
+    """
+    gql = routing_client
+    conn = MagicMock()
+    gql._conn = conn
+
+    # Case that triggers KeyError today: dict missing "type"
+    conn.recv.return_value = b'{"payload": {"errors": ["bad init"]}}'
+    with pytest.raises(GQLResponseException) as exc:
+        gql._waiting_connection_ack()
+    assert "connection" in str(exc.value).lower()
+
+    # Case non-dict (orjson.loads -> None or list etc)
+    conn.recv.return_value = b"null"
+    with pytest.raises(GQLResponseException):
+        gql._waiting_connection_ack()
+
+    # Good path still succeeds
+    conn.recv.return_value = b'{"type": "connection_ack"}'
+    gql._waiting_connection_ack()  # no raise

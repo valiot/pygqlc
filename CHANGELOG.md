@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.8.1] - 2026-06-03
+
+- [Fixed] `_waiting_connection_ack` (initial WS connection_ack after connection_init) now performs defensive access (`isinstance` + `"type" not in`) and raises a controlled `GQLResponseException` (instead of `KeyError`/`TypeError` on `message["type"]`) when the server sends a non-dict or dict-without-type (e.g. `null`, `{"payload":...}`). This matches the "no defensive access" code-bug pattern (see cq['name'] in subscription callbacks) and is defense-in-depth for subscription paths, similar to the non-dict guards added in OPS-3485. (OPS-3613)
+- [Changed] Added regression test exercising the bad-ack paths (TDD: red then green).
+
 ## [3.8.0] - 2026-05-28
 
 - [Fixed] `addEnvironment` no longer wipes an existing environment's `wss`/`url`/`headers`/`post_timeout`/`ipv4_only` when re-registering the same environment name without those arguments. Re-registration now MERGES — omitted arguments keep their previous values. Previously a second `addEnvironment("prod", url=..., headers=...)` on the shared (Singleton) client — e.g. a library configuring its own environment — silently reset `wss` to `None`, which crashed the WSS reconnect loop in `_new_conn` with `TypeError: argument of type 'NoneType' is not a container` and produced endless "Failed connecting to None" errors. This was the root cause of the production incident. (OPS-3496)
