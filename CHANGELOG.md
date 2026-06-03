@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.8.2] - 2026-06-19
+
+- [Fixed] `_waiting_connection_ack` (initial WS connection_ack after connection_init) now performs defensive access (`isinstance` + `"type" not in`) and raises a controlled `GQLResponseException` (instead of `KeyError`/`TypeError` on `message["type"]`) when the server sends a non-dict or dict-without-type (e.g. `null`, `{"payload":...}`). This matches the "no defensive access" code-bug pattern (see cq['name'] in subscription callbacks) and is defense-in-depth for subscription paths, similar to the non-dict guards added in OPS-3485. (OPS-3613)
+- [Changed] Added regression test exercising the bad-ack paths (TDD: red then green).
+
 ## [3.8.1] - 2026-06-11
 
 - [Fixed] Stale `httpx.AsyncClient` instances are now best-effort `aclose()`d instead of being dropped to the garbage collector. Previously three paths leaked the client's transports: `_get_async_client` when it detected a closed event loop, `async_execute`'s "Event loop is closed" retry, and `_close()`/`__del__`. Orphaned `_SelectorTransport.__del__` socket finalizers then ran during cyclic-GC sweeps on arbitrary threads, contributing to false TMPRL1101 deadlock detections in Temporal workers (see valiot/python-tooling#151). A new private `_drop_async_client()` helper awaits `aclose()` (swallowing failures when the original loop is gone) and is used by `_get_async_client`, the `async_execute` retry, and `async_cleanup`; `_close()` now schedules `aclose()` on the running loop via `call_soon_threadsafe` when one exists, falling back to GC only when no loop is available.
