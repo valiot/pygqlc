@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.8.1] - 2026-06-03
+
+- [Fixed] `_sub_routing_loop` (and thus all websocket subscriptions) now tolerates empty `recv()` results from the WSS (zero-length frames), which previously produced `orjson.JSONDecodeError: Input is a zero-length, empty document` and an ERROR log that killed the router thread. Empty (and any other) `orjson` decode failures on the wire are now routed through `TRANSIENT_WS_ERRORS` so they log at WARNING ("WSS connection reset or closed by peer") and trigger the existing reconnect path. (OPS-3597)
+- [Changed] Refreshed transitive dependencies within ranges (`idna` 3.17 → 3.18); `uv.lock` updated.
+
 ## [3.8.0] - 2026-05-28
 
 - [Fixed] `addEnvironment` no longer wipes an existing environment's `wss`/`url`/`headers`/`post_timeout`/`ipv4_only` when re-registering the same environment name without those arguments. Re-registration now MERGES — omitted arguments keep their previous values. Previously a second `addEnvironment("prod", url=..., headers=...)` on the shared (Singleton) client — e.g. a library configuring its own environment — silently reset `wss` to `None`, which crashed the WSS reconnect loop in `_new_conn` with `TypeError: argument of type 'NoneType' is not a container` and produced endless "Failed connecting to None" errors. This was the root cause of the production incident. (OPS-3496)
