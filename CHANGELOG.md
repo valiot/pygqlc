@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.2] - 2026-06-12
+
+- [Fixed] Sync entrypoints (`.query`, `.query_one`, `.mutate`, `.execute`, and batch paths) now immediately raise a clear `RuntimeError` (with guidance to use `async_*` methods or a Temporal Activity) when called while an asyncio event loop is running. This converts a downstream DeadlockError (from blocking `httpx` inside Temporal workflows in valiotworkflows / valuechainos_queues) into a fast, obvious failure at the call site instead of a socket-level deadlock. The guard uses `asyncio.get_running_loop()` (no extra deps) and is covered by a hermetic regression test. (OPS-4402)
+
 ## [3.8.1] - 2026-06-11
 
 - [Fixed] Stale `httpx.AsyncClient` instances are now best-effort `aclose()`d instead of being dropped to the garbage collector. Previously three paths leaked the client's transports: `_get_async_client` when it detected a closed event loop, `async_execute`'s "Event loop is closed" retry, and `_close()`/`__del__`. Orphaned `_SelectorTransport.__del__` socket finalizers then ran during cyclic-GC sweeps on arbitrary threads, contributing to false TMPRL1101 deadlock detections in Temporal workers (see valiot/python-tooling#151). A new private `_drop_async_client()` helper awaits `aclose()` (swallowing failures when the original loop is gone) and is used by `_get_async_client`, the `async_execute` retry, and `async_cleanup`; `_close()` now schedules `aclose()` on the running loop via `call_soon_threadsafe` when one exists, falling back to GC only when no loop is available.

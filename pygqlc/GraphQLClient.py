@@ -8,18 +8,21 @@ GQLResponse (type variable): [data[field(string)], errors[message(string),
 """
 
 import asyncio
-import traceback
-import time
+import logging
+import orjson
 import threading
+import time
+import traceback
 from functools import lru_cache
-import websocket
+
 import httpx
 import pydash as py_
-import orjson
-import logging
+import websocket
+from tenacity import retry, retry_if_result, stop_after_attempt, wait_random
+
 from pygqlc.helper_modules.Singleton import Singleton
 from pygqlc.logging import log, LogLevel
-from tenacity import retry, retry_if_result, stop_after_attempt, wait_random
+
 from .MutationBatch import MutationBatch
 
 # Set httpx logger to WARNING level to reduce HTTP request logs
@@ -334,6 +337,7 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             tuple: Tuple containing (data, errors) from the GraphQL response.
         """
+        self._assert_not_in_async_context()
         data = None
         errors = []
         try:
@@ -361,6 +365,7 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             tuple: Tuple containing (data, errors) from the GraphQL response.
         """
+        self._assert_not_in_async_context()
         return self.query(query, variables, flatten=True, single_child=True)
 
     def _get_messages(self, data: dict | None) -> list[dict]:
@@ -377,6 +382,27 @@ class GraphQLClient(metaclass=Singleton):
                 messages.extend(datum.get("messages") or [])
         return messages
 
+    def _assert_not_in_async_context(self) -> None:
+        """Raise if a blocking call would be made while an event loop is running.
+
+        This guards the sync API (query/execute/mutate) to prevent DeadlockError
+        (or stalled loops) when pygqlc is (mis)used inside Temporal workflows or
+        other asyncio contexts. Directs callers to the async_* methods.
+        """
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError as e:
+            if "no running event loop" in str(e).lower():
+                return  # safe: no loop, blocking I/O is ok
+            raise
+        # loop is running -> forbid blocking
+        raise RuntimeError(
+            "Blocking GraphQL call (pygqlc.query / .execute / .mutate) is not allowed "
+            "while an asyncio event loop is running (e.g. inside a Temporal workflow, "
+            "async def, or asyncio.run()). Use async_query / async_execute / async_mutate "
+            "instead, or move the call into a Temporal Activity. (OPS-4402)"
+        )
+
     # * Mutation high level implementation
     def mutate(
         self, mutation: str, variables: dict | None = None, flatten: bool = True
@@ -392,6 +418,7 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             tuple: Tuple containing (data, errors) from the GraphQL response.
         """
+        self._assert_not_in_async_context()
         response = {}
         data = None
         errors = []
@@ -1031,6 +1058,7 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             dict: Raw GraphQLResponse.
         """
+        self._assert_not_in_async_context()
         data = {"query": query, "variables": variables}
         env = self.environments.get(self.environment)
         if not env:
