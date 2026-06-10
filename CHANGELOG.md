@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.8.1] - 2026-06-10
+
+- [Fixed] `_new_conn` (websocket connect path) now classifies transient peer-reset errors (ConnectionResetError and siblings in TRANSIENT_WS_ERRORS) at WARNING level instead of ERROR+traceback, matching the recv-side handling added in 3.7.1 (OPS-3485). The reconnect/router already treated a False return as a signal to back off; only the log severity at the initial handshake site was missing. This removes noisy first-occurrence ERRORs when the GraphQL WS endpoint transiently resets the peer during connect. (OPS-4418)
+- [Dependencies] Refreshed transitive dependencies within allowed ranges (cryptography, idna, readme-renderer, snowballstemmer); `uv.lock` updated per CI policy.
+
 ## [3.8.0] - 2026-05-28
 
 - [Fixed] `addEnvironment` no longer wipes an existing environment's `wss`/`url`/`headers`/`post_timeout`/`ipv4_only` when re-registering the same environment name without those arguments. Re-registration now MERGES — omitted arguments keep their previous values. Previously a second `addEnvironment("prod", url=..., headers=...)` on the shared (Singleton) client — e.g. a library configuring its own environment — silently reset `wss` to `None`, which crashed the WSS reconnect loop in `_new_conn` with `TypeError: argument of type 'NoneType' is not a container` and produced endless "Failed connecting to None" errors. This was the root cause of the production incident. (OPS-3496)

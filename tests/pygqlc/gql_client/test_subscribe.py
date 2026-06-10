@@ -299,3 +299,45 @@ def test_new_conn_returns_false_when_no_environment():
     assert result is False
     assert any(level == LogLevel.ERROR for level, _ in records)
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_new_conn_connection_reset_logged_as_warning():
+    """OPS-4418: transient ConnectionResetError (or similar) from websocket.create_connection
+    in _new_conn must be logged at WARNING (not ERROR+traceback) and return False so the
+    reconnect path can backoff calmly."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    gql.addEnvironment("conn-test", url="http://ex", wss="ws://ex", default=True)
+    with (
+        patch(
+            "websocket.create_connection",
+            side_effect=ConnectionResetError(104, "Connection reset by peer"),
+        ),
+        _capture_logs() as records,
+    ):
+        result = gql._new_conn()
+    assert result is False
+    assert any(
+        level == LogLevel.WARNING and "Failed connecting" in msg
+        for level, msg in records
+    )
+    assert not any(level == LogLevel.ERROR for level, msg in records)
+    Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_new_conn_unexpected_error_logged_as_error():
+    """Non-transient error during websocket.create_connection must still surface at ERROR
+    level (and return False)."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    gql.addEnvironment("conn-test2", url="http://ex", wss="ws://ex", default=True)
+    with (
+        patch("websocket.create_connection", side_effect=ValueError("boom")),
+        _capture_logs() as records,
+    ):
+        result = gql._new_conn()
+    assert result is False
+    assert any(
+        level == LogLevel.ERROR and "Failed connecting" in msg for level, msg in records
+    )
+    Singleton._instances.pop(GraphQLClient, None)
