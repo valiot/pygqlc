@@ -7,6 +7,7 @@ GQLResponse (type variable): [data[field(string)], errors[message(string),
  field?(string)]
 """
 
+import asyncio
 import traceback
 import time
 import threading
@@ -1107,10 +1108,9 @@ class GraphQLClient(metaclass=Singleton):
             except (RuntimeError, AttributeError) as e:
                 if "Event loop is closed" in str(e) or "has no attribute" in str(e):
                     # Event loop closed or client has been partially destroyed
-                    # Create a new client
+                    # Create a new client, best-effort closing the old one first
                     new_client_needed = True
-                    # Intentionally don't try to close the old client as its event loop is closed
-                    self._async_client = None
+                    await self._drop_async_client()
                 else:
                     # Some other error, re-raise
                     raise
@@ -1121,11 +1121,22 @@ class GraphQLClient(metaclass=Singleton):
 
         return self._async_client
 
-    async def _close_async_client(self):
-        """Close the async client if it exists"""
-        if self._async_client is not None:
-            await self._async_client.aclose()
-            self._async_client = None
+    async def _drop_async_client(self):
+        """Best-effort aclose() of the current async client before dropping it.
+
+        Closing may fail when the client's original event loop is gone; transports
+        are then unavoidably left to GC, but every avoidable path closes promptly
+        so socket finalizers don't pile up for the cyclic GC (TMPRL1101 fallout in
+        Temporal workers — see valiot/python-tooling#151).
+        """
+        client, self._async_client = self._async_client, None
+        if client is None:
+            return
+        try:
+            await client.aclose()
+        except Exception as e:  # pylint: disable=broad-except
+            # Loop gone / client partially torn down — nothing more we can do
+            log(LogLevel.WARNING, f"Warning: Error closing async client: {str(e)}")
 
     async def async_execute(self, query: str, variables: dict | None = None) -> dict:
         """Async version of execute method that executes instructions of a query or mutation.
@@ -1167,8 +1178,8 @@ class GraphQLClient(metaclass=Singleton):
             # Check if this is an event loop issue or a network issue
             if "Event loop is closed" in str(e):
                 # Event loop was closed - need to get a new client with a valid loop
-                # The _get_async_client method will handle this on the next call
-                self._async_client = None
+                # Best-effort close the stale client instead of leaking its transports
+                await self._drop_async_client()
                 # Try again with a new client
                 client = await self._get_async_client()
                 response = await client.post(
@@ -1287,28 +1298,7 @@ class GraphQLClient(metaclass=Singleton):
         async operations are in progress. It handles cases where
         the event loop might already be closed.
         """
-        if self._async_client is not None:
-            try:
-                # Check if the client is still usable
-                try:
-                    # This will raise an exception if the event loop is closed
-                    await self._async_client.get_timeout()
-                    # If we get here, the client is usable, so close it
-                    await self._async_client.aclose()
-                except (RuntimeError, AttributeError) as e:
-                    if "Event loop is closed" in str(e) or "has no attribute" in str(e):
-                        # Client's event loop is already closed
-                        # We can't await aclose(), just let it be garbage collected
-                        pass
-                    else:
-                        # Some other error during check, still try to close
-                        await self._async_client.aclose()
-            except Exception as e:  # pylint: disable=broad-except
-                # If closing fails, log but continue
-                log(LogLevel.WARNING, f"Warning: Error closing async client: {str(e)}")
-            finally:
-                # Always set to None to allow garbage collection and recreation
-                self._async_client = None
+        await self._drop_async_client()
 
     def _close(self):
         """Explicitly close resources"""
@@ -1319,11 +1309,17 @@ class GraphQLClient(metaclass=Singleton):
             except Exception:  # pylint: disable=broad-except
                 pass
 
-        # For async client, we can't use await in close(), so just set to None
-        # to allow garbage collection. We don't try to close it properly here
-        # as that would require an event loop, which might be closed already.
+        # For the async client we can't await here. If this thread has a running
+        # event loop (e.g. __del__ triggered by GC inside a loop thread), schedule
+        # aclose() on it; otherwise the transports are left to GC, as before.
+        # __del__ can run on any thread, hence call_soon_threadsafe.
         if hasattr(self, "_async_client") and self._async_client is not None:
-            self._async_client = None
+            client, self._async_client = self._async_client, None
+            try:
+                loop = asyncio.get_running_loop()
+                loop.call_soon_threadsafe(lambda: loop.create_task(client.aclose()))
+            except Exception:  # pylint: disable=broad-except
+                pass  # no usable loop — GC fallback, as before
 
     def __del__(self):
         """Cleanup resources when the instance is being destroyed"""
