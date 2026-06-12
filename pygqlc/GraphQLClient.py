@@ -536,6 +536,10 @@ class GraphQLClient(metaclass=Singleton):
             try:
                 self._conn.settimeout(0.5)
                 raw = self._conn.recv()
+                if isinstance(raw, (bytes, str)) and len(raw) == 0:
+                    raise websocket.WebSocketConnectionClosedException(
+                        "Connection to remote host was lost."
+                    )
                 message = orjson.loads(raw)
                 self._conn.settimeout(self.websocket_timeout)
             except (TimeoutError, websocket.WebSocketTimeoutException):
