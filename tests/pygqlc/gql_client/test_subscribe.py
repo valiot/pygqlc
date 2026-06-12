@@ -299,3 +299,49 @@ def test_new_conn_returns_false_when_no_environment():
     assert result is False
     assert any(level == LogLevel.ERROR for level, _ in records)
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_ping_pong_transient_error_logged_as_warning():
+    """OPS-3523: BrokenPipeError (transient) from _conn.send(PING_JSON) in _ping_pong
+    must log at WARNING (not ERROR), set wss_conn_halted, and must not kill the ping thread.
+    Mirrors the recv handling and regression tests added for OPS-3485."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    gql.addEnvironment("ping-test", url="http://ex", wss="ws://ex", default=True)
+    conn = MagicMock()
+    conn.settimeout.return_value = None
+    conn.close.return_value = None
+    gql._conn = conn
+    gql.pingIntervalTime = 0.0
+    gql._conn.send.side_effect = BrokenPipeError(32, "Broken pipe")
+
+    call_times = [0.0, 100.0]
+    with (
+        patch("time.sleep"),
+        patch("time.time", side_effect=call_times),
+        _capture_logs() as records,
+    ):
+        thread = threading.Thread(target=gql._ping_pong, daemon=True)
+        thread.start()
+        for _ in range(1_000_000):
+            if gql._conn.send.call_count > 0:
+                break
+        assert gql._conn.send.call_count > 0, "ping send was never attempted"
+
+        assert gql.wss_conn_halted is True
+
+        gql.closing = True
+        thread.join(timeout=2.0)
+        assert not thread.is_alive(), (
+            "ping_pong thread did not exit cleanly after error"
+        )
+
+    assert any(
+        level == LogLevel.WARNING and "WSS connection reset or closed by peer" in msg
+        for level, msg in records
+    )
+    assert not any(
+        level == LogLevel.ERROR and "error trying to send ping" in msg
+        for level, msg in records
+    )
+    Singleton._instances.pop(GraphQLClient, None)
