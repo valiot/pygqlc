@@ -299,3 +299,29 @@ def test_new_conn_returns_false_when_no_environment():
     assert result is False
     assert any(level == LogLevel.ERROR for level, _ in records)
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_sub_routing_loop_empty_recv_from_close_frame_logged_as_warning(routing_client):
+    """OPS-3580: recv() returning '' (empty str, from CLOSE opcode per websocket-client
+    recv/recv_data) must not reach orjson.loads and raise JSONDecodeError; it must be
+    treated exactly like ConnectionResetError — WARNING log, wss_conn_halted, reconnect
+    attempted, no ERROR "Some error trying to receive WSS"."""
+    gql = routing_client
+    gql._conn.recv.return_value = ""
+
+    with (
+        patch.object(gql, "_new_conn", side_effect=_stop_loop_on(gql)) as new_conn,
+        _capture_logs() as records,
+    ):
+        _run_routing_loop(gql)
+
+    assert gql.wss_conn_halted is True
+    assert new_conn.called
+    assert any(
+        level == LogLevel.WARNING and "reset or closed by peer" in msg
+        for level, msg in records
+    )
+    assert not any(
+        level == LogLevel.ERROR and "Some error trying to receive WSS" in msg
+        for level, msg in records
+    )

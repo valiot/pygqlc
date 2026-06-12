@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [3.8.2] - 2026-06-12
+
+- [Fixed] `_sub_routing_loop` now guards `raw = self._conn.recv()` against zero-length/empty return values (produced by websocket-client for CLOSE opcode frames, which its .recv() turns into "" rather than raising) before `orjson.loads(raw)`. Previously this yielded `orjson.JSONDecodeError: Input is a zero-length, empty document` logged at ERROR; empty frames are now turned into `WebSocketConnectionClosedException` so they take the existing WARNING "reset or closed by peer" path, set `wss_conn_halted`, and trigger reconnect. (OPS-3580)
+- [Changed] Added deterministic hermetic regression test (modeled exactly on the OPS-3485 connection-reset and non-dict tests) that fails against the pre-fix code. TDD followed: test written first, observed red (ERROR log), then guard added to green.
+- [Dependencies] Refreshed transitive within allowed ranges; `uv.lock` updated.
+
 ## [3.8.1] - 2026-06-11
 
 - [Fixed] Stale `httpx.AsyncClient` instances are now best-effort `aclose()`d instead of being dropped to the garbage collector. Previously three paths leaked the client's transports: `_get_async_client` when it detected a closed event loop, `async_execute`'s "Event loop is closed" retry, and `_close()`/`__del__`. Orphaned `_SelectorTransport.__del__` socket finalizers then ran during cyclic-GC sweeps on arbitrary threads, contributing to false TMPRL1101 deadlock detections in Temporal workers (see valiot/python-tooling#151). A new private `_drop_async_client()` helper awaits `aclose()` (swallowing failures when the original loop is gone) and is used by `_get_async_client`, the `async_execute` retry, and `async_cleanup`; `_close()` now schedules `aclose()` on the running loop via `call_soon_threadsafe` when one exists, falling back to GC only when no loop is available.
