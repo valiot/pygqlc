@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.2] - 2026-06-12
+
+- [Fixed] `_ping_pong` background thread no longer dies with unhandled BrokenPipeError (or ConnectionResetError etc.) when the WebSocket becomes invalid; transient send errors now log at WARNING (matching the `_sub_routing_loop` behavior from OPS-3485), set `wss_conn_halted`, and let the keep-alive thread survive so reconnection can restore pings. Added `if not self._conn` guard + regression test modeled on prior websocket tests. (OPS-3523)
+
 ## [3.8.1] - 2026-06-11
 
 - [Fixed] Stale `httpx.AsyncClient` instances are now best-effort `aclose()`d instead of being dropped to the garbage collector. Previously three paths leaked the client's transports: `_get_async_client` when it detected a closed event loop, `async_execute`'s "Event loop is closed" retry, and `_close()`/`__del__`. Orphaned `_SelectorTransport.__del__` socket finalizers then ran during cyclic-GC sweeps on arbitrary threads, contributing to false TMPRL1101 deadlock detections in Temporal workers (see valiot/python-tooling#151). A new private `_drop_async_client()` helper awaits `aclose()` (swallowing failures when the original loop is gone) and is used by `_get_async_client`, the `async_execute` retry, and `async_cleanup`; `_close()` now schedules `aclose()` on the running loop via `call_soon_threadsafe` when one exists, falling back to GC only when no loop is available.
