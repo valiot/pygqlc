@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.2] - 2026-06-12
+
+- [Fixed] `data_flatten` (and thus all `query`/`query_one`/`mutate` + subscription callbacks) now strips nested `list` items from list results. This prevents consumers (e.g. valiotworker `currentQueues = ...` from `all_queues_w_listeners`) from receiving lists as elements inside what should be list-of-dicts; such bad elements produced `TypeError: list indices must be integers or slices, not str` inside `__.find(..., lambda cq: ... cq['name'])` in `workerQueueEnabled` (and similar) when an event subscription callback fired. (OPS-3999)
+
 ## [3.8.1] - 2026-06-11
 
 - [Fixed] Stale `httpx.AsyncClient` instances are now best-effort `aclose()`d instead of being dropped to the garbage collector. Previously three paths leaked the client's transports: `_get_async_client` when it detected a closed event loop, `async_execute`'s "Event loop is closed" retry, and `_close()`/`__del__`. Orphaned `_SelectorTransport.__del__` socket finalizers then ran during cyclic-GC sweeps on arbitrary threads, contributing to false TMPRL1101 deadlock detections in Temporal workers (see valiot/python-tooling#151). A new private `_drop_async_client()` helper awaits `aclose()` (swallowing failures when the original loop is gone) and is used by `_get_async_client`, the `async_execute` retry, and `async_cleanup`; `_close()` now schedules `aclose()` on the running loop via `call_soon_threadsafe` when one exists, falling back to GC only when no loop is available.
@@ -7,7 +11,6 @@
 - [Changed] Removed the unused `_close_async_client` private method, superseded by `_drop_async_client`.
 
 ## [3.8.0] - 2026-05-28
-
 - [Fixed] `addEnvironment` no longer wipes an existing environment's `wss`/`url`/`headers`/`post_timeout`/`ipv4_only` when re-registering the same environment name without those arguments. Re-registration now MERGES — omitted arguments keep their previous values. Previously a second `addEnvironment("prod", url=..., headers=...)` on the shared (Singleton) client — e.g. a library configuring its own environment — silently reset `wss` to `None`, which crashed the WSS reconnect loop in `_new_conn` with `TypeError: argument of type 'NoneType' is not a container` and produced endless "Failed connecting to None" errors. This was the root cause of the production incident. (OPS-3496)
 - [Fixed] `_new_conn` now guards against an unset/unregistered environment or a missing `wss`, logging a clear ERROR and returning `False` instead of raising `AttributeError`/`TypeError` and killing the subscription router thread. Defense-in-depth alongside the `addEnvironment` fix. (OPS-3496)
 
