@@ -127,16 +127,18 @@ def _data_flatten_impl(data, single_child=False):
         if len(keys) == 1:
             return _data_flatten_impl(data[keys[0]], single_child)
         else:
-            return data  # ! various elements, nothing to flatten
+            return data
     elif single_child and isinstance(data, list):
         if len(data) == 1:
             return _data_flatten_impl(data[0], single_child)
         elif len(data) == 0:
-            return None  # * Return none if no child was found
+            return None
         else:
-            return data
+            return [x for x in data if not isinstance(x, list)]
     else:
-        return data  # ! not a dict, nothing to flatten
+        if isinstance(data, list):
+            return [x for x in data if not isinstance(x, list)]
+        return data
 
 
 def data_flatten(data, single_child=False):
