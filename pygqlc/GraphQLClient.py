@@ -781,10 +781,13 @@ class GraphQLClient(metaclass=Singleton):
                     # No need to log normal ping operations
                 except Exception as e:
                     if not self.closing:
-                        log(
-                            LogLevel.ERROR,
-                            "error trying to send ping, WSS Pipe is broken",
-                        )
+                        if isinstance(e, TRANSIENT_WS_ERRORS):
+                            log(
+                                LogLevel.WARNING,
+                                "WSS connection reset or closed by peer",
+                            )
+                        else:
+                            log(LogLevel.ERROR, "Some error trying to send ping")
                         self.wss_conn_halted = True
 
     def _registerSub(self, _id=None):

@@ -299,3 +299,75 @@ def test_new_conn_returns_false_when_no_environment():
     assert result is False
     assert any(level == LogLevel.ERROR for level, _ in records)
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_ping_pong_connection_reset_logged_as_warning(routing_client):
+    """OPS-4640: ConnectionResetError from _ping_pong send is transient — log at WARNING
+    (not ERROR+traceback) and set wss_conn_halted so router will reconnect."""
+    gql = routing_client
+    gql.closing = False
+    gql.wss_conn_halted = False
+    gql.pingIntervalTime = -1
+
+    # Time sequence so first check after init yields a large delta > interval:
+    # init pingTimer gets 0; the current_time read gets 100 → delta 100 > -1.
+    time_values = iter([0, 100])
+
+    def _send_then_raise(_data):
+        raise ConnectionResetError(104, "Connection reset by peer")
+
+    gql._conn.send.side_effect = _send_then_raise
+
+    with (
+        patch("pygqlc.GraphQLClient.time.sleep", return_value=None),
+        patch("pygqlc.GraphQLClient.time.time", side_effect=lambda: next(time_values)),
+        _capture_logs() as records,
+    ):
+        thread = threading.Thread(target=gql._ping_pong, daemon=True)
+        thread.start()
+        # Let the thread attempt one send (which raises) and set halted; then unblock exit.
+        time.sleep(0.01)
+        gql.closing = True
+        thread.join(1.0)
+        assert not thread.is_alive(), "ping loop did not terminate"
+
+    assert gql.wss_conn_halted is True
+    assert any(
+        level == LogLevel.WARNING and "reset or closed by peer" in msg
+        for level, msg in records
+    )
+    assert not any(level == LogLevel.ERROR for level, msg in records)
+
+
+def test_ping_pong_unexpected_error_logged_as_error(routing_client):
+    """A non-transient error (not in TRANSIENT_WS_ERRORS) during ping send must surface
+    at ERROR level and halt for reconnection."""
+    gql = routing_client
+    gql.closing = False
+    gql.wss_conn_halted = False
+    gql.pingIntervalTime = -1
+
+    time_values = iter([0, 100])
+
+    def _send_then_raise(_data):
+        raise ValueError("unexpected ping send failure")
+
+    gql._conn.send.side_effect = _send_then_raise
+
+    with (
+        patch("pygqlc.GraphQLClient.time.sleep", return_value=None),
+        patch("pygqlc.GraphQLClient.time.time", side_effect=lambda: next(time_values)),
+        _capture_logs() as records,
+    ):
+        thread = threading.Thread(target=gql._ping_pong, daemon=True)
+        thread.start()
+        time.sleep(0.01)
+        gql.closing = True
+        thread.join(1.0)
+        assert not thread.is_alive(), "ping loop did not terminate"
+
+    assert gql.wss_conn_halted is True
+    assert any(
+        level == LogLevel.ERROR and "Some error trying to send ping" in msg
+        for level, msg in records
+    )
