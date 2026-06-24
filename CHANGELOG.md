@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.3] - 2026-06-24
+
+- [Fixed] `query`, `mutate`, `async_query`, and `async_mutate` no longer collapse a raised transport exception into `[{"message": ""}]`. httpx timeout and connection-reset exceptions carry an empty message (`str(httpx.ReadTimeout(""))` is `""`), so the previous `errors = [{"message": str(e)}]` surfaced a blank, undiagnosable error — most visibly on `async_mutate`, where async httpx timeouts always stringify to "". A new `exception_errors` helper falls back to `repr(error)` when the message is blank, preserving the exception class name (e.g. `ReadTimeout('')`) so the caller can tell what actually failed. Added an integration test that drives a real `GraphQLClient` against a local HTTP server stalled past `post_timeout`.
+
 ## [3.8.2] - 2026-06-23
 
 - [Fixed] `_new_conn` now closes the previous WSS connection before opening a new one, instead of overwriting `self._conn` and abandoning the old socket. On reconnect (when `_sub_routing_loop` sets `wss_conn_halted` and calls `_new_conn`) the orphaned socket lingered half-open on the server — no TCP FIN was ever sent — so the gateway kept fanning subscription events into a dead connection, accumulating an unbounded send buffer/mailbox until it OOMed. A new private `_close_conn` helper best-effort closes `self._conn` and clears the handle; it runs at the top of `_new_conn` so the server receives a FIN and tears down the stale subscription, and is reused by `close()` to drop the duplicated teardown.
