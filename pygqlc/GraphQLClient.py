@@ -692,8 +692,10 @@ class GraphQLClient(metaclass=Singleton):
         if self._conn is not None:
             try:
                 self._conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                # Expected on an already-broken/half-open socket; the close is
+                # best-effort, so log at debug and continue clearing the handle.
+                log(LogLevel.DEBUG, f"Ignoring error closing stale WSS connection: {e}")
             self._conn = None
 
     def _new_conn(self):
