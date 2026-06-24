@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.2] - 2026-06-23
+
+- [Fixed] `_new_conn` now closes the previous WSS connection before opening a new one, instead of overwriting `self._conn` and abandoning the old socket. On reconnect (when `_sub_routing_loop` sets `wss_conn_halted` and calls `_new_conn`) the orphaned socket lingered half-open on the server — no TCP FIN was ever sent — so the gateway kept fanning subscription events into a dead connection, accumulating an unbounded send buffer/mailbox until it OOMed. A new private `_close_conn` helper best-effort closes `self._conn` and clears the handle; it runs at the top of `_new_conn` so the server receives a FIN and tears down the stale subscription, and is reused by `close()` to drop the duplicated teardown.
+
 ## [3.8.1] - 2026-06-11
 
 - [Fixed] Stale `httpx.AsyncClient` instances are now best-effort `aclose()`d instead of being dropped to the garbage collector. Previously three paths leaked the client's transports: `_get_async_client` when it detected a closed event loop, `async_execute`'s "Event loop is closed" retry, and `_close()`/`__del__`. Orphaned `_SelectorTransport.__del__` socket finalizers then ran during cyclic-GC sweeps on arbitrary threads, contributing to false TMPRL1101 deadlock detections in Temporal workers (see valiot/python-tooling#151). A new private `_drop_async_client()` helper awaits `aclose()` (swallowing failures when the original loop is gone) and is used by `_get_async_client`, the `async_execute` retry, and `async_cleanup`; `_close()` now schedules `aclose()` on the running loop via `call_soon_threadsafe` when one exists, falling back to GC only when no loop is available.

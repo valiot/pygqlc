@@ -682,7 +682,25 @@ class GraphQLClient(metaclass=Singleton):
         data = py_.get(message, "payload", {})
         return data_flatten(data) if self.subs[_id]["flatten"] else data
 
+    def _close_conn(self):
+        """Best-effort close of the current WSS connection and clear the handle.
+
+        Swallows errors because the socket may already be broken/half-open; the
+        point is to send a FIN so the server tears down any stale subscription
+        rather than orphaning the socket on reconnect.
+        """
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
+
     def _new_conn(self):
+        # Close any previous connection before reconnecting; otherwise the old
+        # socket lingers half-open on the server, which keeps pushing
+        # subscription data into it forever.
+        self._close_conn()
         if not self.environment:
             log(LogLevel.ERROR, "No environment set; cannot establish WSS connection")
             return False
@@ -723,12 +741,11 @@ class GraphQLClient(metaclass=Singleton):
             return
         for sub in self.subs.values():
             sub["unsub"]()
-        self._conn.close()
+        self._close_conn()
         self.sub_router_thread.join()
         self.sub_pingpong_thread.join()
         self.sub_router_thread = None
         self.sub_pingpong_thread = None
-        self._conn = None
         self.sub_counter = 0
         self.subs = {}
         self.closing = False

@@ -299,3 +299,30 @@ def test_new_conn_returns_false_when_no_environment():
     assert result is False
     assert any(level == LogLevel.ERROR for level, _ in records)
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_new_conn_closes_previous_connection_on_reconnect():
+    """A reconnect must cleanly close the previous socket before opening a new one,
+    so the stitchex server receives a FIN and tears down the stale subscription.
+    Previously _new_conn abandoned the old self._conn (half-open socket leak) and
+    the server kept fanning subscription data into it until it OOMed."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    gql.addEnvironment("reconnect-test", url="http://ex", wss="ws://ex", default=True)
+    old_conn = MagicMock()
+    gql._conn = old_conn
+    new_conn = MagicMock()
+
+    with (
+        patch(
+            "pygqlc.GraphQLClient.websocket.create_connection",
+            return_value=new_conn,
+        ),
+        patch.object(gql, "_conn_init"),
+    ):
+        result = gql._new_conn()
+
+    assert result is True
+    old_conn.close.assert_called_once()
+    assert gql._conn is new_conn, "the new connection must replace the old one"
+    Singleton._instances.pop(GraphQLClient, None)
