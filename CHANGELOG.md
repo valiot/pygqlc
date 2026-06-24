@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.3] - 2026-06-24
+
+- [Fixed] `_sub_routing_loop` (and thus all websocket subscriptions) now tolerates empty `recv()` results from the WSS (zero-length frames), which previously produced `orjson.JSONDecodeError: Input is a zero-length, empty document` and an ERROR log that killed the router thread. Empty (and any other) `orjson` decode failures on the wire are now routed through `TRANSIENT_WS_ERRORS` so they log at WARNING ("WSS connection reset or closed by peer") and trigger the existing reconnect path. (OPS-3597)
+
 ## [3.8.2] - 2026-06-23
 
 - [Fixed] `_new_conn` now closes the previous WSS connection before opening a new one, instead of overwriting `self._conn` and abandoning the old socket. On reconnect (when `_sub_routing_loop` sets `wss_conn_halted` and calls `_new_conn`) the orphaned socket lingered half-open on the server — no TCP FIN was ever sent — so the gateway kept fanning subscription events into a dead connection, accumulating an unbounded send buffer/mailbox until it OOMed. A new private `_close_conn` helper best-effort closes `self._conn` and clears the handle; it runs at the top of `_new_conn` so the server receives a FIN and tears down the stale subscription, and is reused by `close()` to drop the duplicated teardown.
