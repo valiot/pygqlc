@@ -299,3 +299,70 @@ def test_new_conn_returns_false_when_no_environment():
     assert result is False
     assert any(level == LogLevel.ERROR for level, _ in records)
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_new_conn_closes_previous_connection_on_reconnect():
+    """A reconnect must cleanly close the previous socket before opening a new one,
+    so the stitchex server receives a FIN and tears down the stale subscription.
+    Previously _new_conn abandoned the old self._conn (half-open socket leak) and
+    the server kept fanning subscription data into it until it OOMed."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    gql.addEnvironment("reconnect-test", url="http://ex", wss="ws://ex", default=True)
+    old_conn = MagicMock()
+    gql._conn = old_conn
+    new_conn = MagicMock()
+
+    with (
+        patch(
+            "pygqlc.GraphQLClient.websocket.create_connection",
+            return_value=new_conn,
+        ),
+        patch.object(gql, "_conn_init"),
+    ):
+        result = gql._new_conn()
+
+    assert result is True
+    old_conn.close.assert_called_once()
+    assert gql._conn is new_conn, "the new connection must replace the old one"
+    Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_multiple_subscriptions_share_one_connection():
+    """graphql-transport-ws multiplexes every subscription over a SINGLE socket,
+    keyed by id. subscribe() opens the connection only when self._conn is unset
+    (the `if not self._conn` guard), so the 2nd/3rd/... subscriptions reuse it and
+    never call _new_conn. This guards the close-on-reconnect fix: _close_conn must
+    never tear down a live connection that still has active subscriptions on it."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    gql.addEnvironment("multisub-test", url="http://ex", wss="ws://ex", default=True)
+    gql.subs = {}
+    gql.poll_interval = 0
+    created = []
+
+    def make_conn(*_args, **_kwargs):
+        conn = MagicMock(name=f"conn{len(created)}")
+        created.append(conn)
+        return conn
+
+    with (
+        patch(
+            "pygqlc.GraphQLClient.websocket.create_connection", side_effect=make_conn
+        ) as create_connection,
+        # Keep it hermetic: don't spawn the router/ping/per-sub threads or send frames.
+        patch.object(gql, "_conn_init"),
+        patch.object(gql, "_subscription_loop"),
+        patch.object(gql, "_start"),
+    ):
+        gql.subscribe("subscription { a }", callback=lambda _m: None)
+        gql.subscribe("subscription { b }", callback=lambda _m: None)
+        gql.subscribe("subscription { c }", callback=lambda _m: None)
+
+    assert create_connection.call_count == 1, "all subscriptions share ONE socket"
+    assert len(gql.subs) == 3, "all three subscriptions must be active"
+    assert created[0].close.call_count == 0, (
+        "the live shared connection must not be closed while subscriptions are active"
+    )
+    gql.closing = True
+    Singleton._instances.pop(GraphQLClient, None)
