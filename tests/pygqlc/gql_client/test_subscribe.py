@@ -145,6 +145,14 @@ def _stop_loop_on(gql):
     return _stop
 
 
+def _run_ping_pong(gql, timeout=1.0):
+    """Run _ping_pong in a daemon thread; fail (not hang) if it doesn't exit."""
+    thread = threading.Thread(target=gql._ping_pong, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    assert not thread.is_alive(), "ping pong loop did not terminate"
+
+
 @pytest.fixture
 def routing_client():
     """A fresh GraphQLClient (bypassing the process-wide singleton cache) wired to a mock
@@ -246,6 +254,77 @@ def test_sub_routing_loop_valid_message_does_not_halt(routing_client):
     new_conn.assert_not_called()
     assert not any(level == LogLevel.ERROR for level, msg in records)
     assert not any("invalid WSS message" in msg for level, msg in records)
+
+
+def test_ping_pong_connection_reset_logged_as_warning(routing_client):
+    """OPS-3616: ConnectionResetError from send in _ping_pong is transient — log at
+    WARNING (not ERROR+traceback) and set wss_conn_halted to trigger reconnection.
+    The send error must be classified like recv transient errors (OPS-3485)."""
+    gql = routing_client
+    gql.pingIntervalTime = 0
+    gql.pingTimer = 0
+
+    send_called = [0]
+
+    def send_effect(data):
+        send_called[0] += 1
+        if send_called[0] == 1:
+            raise ConnectionResetError(104, "Connection reset by peer")
+        return None
+
+    gql._conn.send.side_effect = send_effect
+
+    sleep_calls = [0]
+
+    def sleepy(*args):
+        sleep_calls[0] += 1
+        if sleep_calls[0] > 2:
+            gql.closing = True
+        return None
+
+    with patch("time.sleep", side_effect=sleepy), _capture_logs() as records:
+        _run_ping_pong(gql)
+
+    assert gql.wss_conn_halted is True
+    assert send_called[0] == 1
+    assert any(
+        level == LogLevel.WARNING and "reset or closed by peer" in msg
+        for level, msg in records
+    )
+    assert not any(
+        level == LogLevel.ERROR and "error trying to send ping" in msg
+        for level, msg in records
+    )
+
+
+def test_ping_pong_unexpected_error_logged_as_error(routing_client):
+    """A non-transient error from _ping_pong send must still surface at ERROR
+    level (and halt)."""
+    gql = routing_client
+    gql.pingIntervalTime = 0
+    gql.pingTimer = 0
+
+    def send_effect(data):
+        raise ValueError("unexpected ping send failure")
+
+    gql._conn.send.side_effect = send_effect
+
+    sleep_calls = [0]
+
+    def sleepy(*args):
+        sleep_calls[0] += 1
+        if sleep_calls[0] > 2:
+            gql.closing = True
+        return None
+
+    with patch("time.sleep", side_effect=sleepy), _capture_logs() as records:
+        _run_ping_pong(gql)
+
+    assert gql.wss_conn_halted is True
+    assert any(
+        level == LogLevel.ERROR and "error trying to send ping" in msg
+        for level, msg in records
+    )
 
 
 def test_addenvironment_reregister_preserves_wss():

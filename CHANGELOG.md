@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.9.1] - 2026-10-04
+
+- [Fixed] `_ping_pong` now logs a transient send failure (`TRANSIENT_WS_ERRORS`: connection reset/aborted, broken pipe, websocket closed) at WARNING instead of ERROR, matching how `_sub_routing_loop` has classified the same errors on `recv` since 3.7.1. Reconnect via `wss_conn_halted` is unchanged; only the log level differs. (OPS-3616)
+
 ## [3.9.0] - 2026-10-04
 
 - [Added] `execute`, `async_execute`, `mutate`, and `async_mutate` take an optional `operation_name`, sent as `operationName` in the POST body. A document that defines several named operations needs it to say which one to run — most importantly valiot-app transactions, where each step is its own named operation and the server finds the `executeTransaction` entry point only through `operationName` (without it the request fails with a 500). Requests without `operation_name` send the same `{query, variables}` body as before.
