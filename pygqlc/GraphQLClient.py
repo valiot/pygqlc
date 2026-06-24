@@ -97,6 +97,18 @@ def has_errors(result):
     return bool(errors)
 
 
+def exception_errors(error: Exception) -> list[dict]:
+    """Build the `errors` payload for an exception raised while executing.
+
+    Some transport failures carry an empty message, so `str(error)` is "".
+    httpx timeouts and connection resets are the common ones —
+    `str(httpx.ReadTimeout(""))` is "". Reporting those as `[{"message": ""}]`
+    hides what actually failed, so fall back to `repr(error)` (which keeps the
+    exception class name) whenever the message is blank.
+    """
+    return [{"message": str(error) or repr(error)}]
+
+
 @lru_cache(maxsize=128)
 def _data_flatten_cacheable(data_str, single_child):
     """Internal cacheable version of data_flatten using string representation of data.
@@ -346,7 +358,7 @@ class GraphQLClient(metaclass=Singleton):
             if flatten and data is not None:
                 data = data_flatten(data, single_child=single_child)
         except Exception as e:
-            errors = [{"message": str(e)}]
+            errors = exception_errors(e)
         return data, errors
 
     # * Query high level implementation
@@ -398,7 +410,7 @@ class GraphQLClient(metaclass=Singleton):
         try:
             response = self.execute(mutation, variables)
         except Exception as e:
-            errors = [{"message": str(e)}]
+            errors = exception_errors(e)
         finally:
             response_errors = response.get("errors", [])
             if response_errors:
@@ -1249,7 +1261,7 @@ class GraphQLClient(metaclass=Singleton):
             if flatten and data is not None:
                 data = data_flatten(data, single_child=single_child)
         except Exception as e:
-            errors = [{"message": str(e)}]
+            errors = exception_errors(e)
         return data, errors
 
     async def async_query_one(self, query: str, variables: dict | None = None) -> tuple:
@@ -1285,7 +1297,7 @@ class GraphQLClient(metaclass=Singleton):
         try:
             response = await self.async_execute(mutation, variables)
         except Exception as e:
-            errors = [{"message": str(e)}]
+            errors = exception_errors(e)
         finally:
             response_errors = response.get("errors", [])
             if response_errors:
