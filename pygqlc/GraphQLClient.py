@@ -738,8 +738,14 @@ class GraphQLClient(metaclass=Singleton):
             )
             self._conn_init()
             return True
-        except Exception:
-            log(LogLevel.ERROR, f"Failed connecting to {self.ws_url}")
+        except Exception as exc:
+            if isinstance(exc, (OSError, TimeoutError)):
+                # Transient reachability errors (ConnectionRefusedError, host unreachable,
+                # timeouts, etc.) are WARNING to avoid ERROR spam + traceback when the
+                # GraphQL WS endpoint is temporarily unavailable. (OPS-4738)
+                log(LogLevel.WARNING, f"Failed connecting to {self.ws_url}")
+            else:
+                log(LogLevel.ERROR, f"Failed connecting to {self.ws_url}")
             return False
 
     def close(self):

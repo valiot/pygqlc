@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.4] - 2026-06-24
+
+- [Fixed] `_new_conn` now treats transient connect failures (ConnectionRefusedError, TimeoutError, other OSErrors) as WARNING instead of ERROR. Previously `websocket.create_connection` raising ConnectionRefusedError for an unreachable GraphQL WS endpoint produced a recurring ERROR + full traceback inside the subscription router thread, even though the code already handled the failure by returning False and retrying. Now such transient reachability errors are logged at WARNING (no traceback spam) while true configuration errors (missing env, missing wss) remain ERROR. Regression test added. (OPS-4738)
+
 ## [3.8.3] - 2026-06-24
 
 - [Fixed] `query`, `mutate`, `async_query`, and `async_mutate` no longer collapse a raised transport exception into `[{"message": ""}]`. httpx timeout and connection-reset exceptions carry an empty message (`str(httpx.ReadTimeout(""))` is `""`), so the previous `errors = [{"message": str(e)}]` surfaced a blank, undiagnosable error — most visibly on `async_mutate`, where async httpx timeouts always stringify to "". A new `exception_errors` helper falls back to `repr(error)` when the message is blank, preserving the exception class name (e.g. `ReadTimeout('')`) so the caller can tell what actually failed. Added an integration test that drives a real `GraphQLClient` against a local HTTP server stalled past `post_timeout`.
