@@ -366,3 +366,34 @@ def test_multiple_subscriptions_share_one_connection():
     )
     gql.closing = True
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def test_new_conn_connection_refused_logs_warning_not_error():
+    """OPS-4738: ConnectionRefusedError (unreachable WS endpoint) must log at WARNING
+    (no traceback noise) and return False so the router survives; ERROR is reserved for
+    config problems. This prevents recurring ERROR spam when the GraphQL WS endpoint
+    is temporarily unreachable."""
+    Singleton._instances.pop(GraphQLClient, None)
+    gql = GraphQLClient()
+    gql.addEnvironment(
+        "connref",
+        url="http://ex",
+        wss="ws://exp-627-lamosa-gto-prod.default.svc.cluster.local/",
+        default=True,
+    )
+    with (
+        patch(
+            "pygqlc.GraphQLClient.websocket.create_connection",
+            side_effect=ConnectionRefusedError(111, "Connection refused"),
+        ),
+        _capture_logs() as records,
+    ):
+        result = gql._new_conn()
+    assert result is False
+    # Must log WARNING for transient connect failure, never ERROR for this case
+    assert any(
+        level == LogLevel.WARNING and "Failed connecting to" in msg
+        for level, msg in records
+    )
+    assert not any(level == LogLevel.ERROR for level, msg in records)
+    Singleton._instances.pop(GraphQLClient, None)
