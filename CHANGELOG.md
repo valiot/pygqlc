@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.3] - 2026-06-24
+
+- [Fixed] Sync entrypoints (`.query`, `.query_one`, `.mutate`, `.execute`, and batch paths) now immediately raise a clear `RuntimeError` (with guidance to use `async_*` methods or a Temporal Activity) when called while an asyncio event loop is running. This converts a downstream DeadlockError (from blocking `httpx` inside Temporal workflows in valiotworkflows / valuechainos_queues) into a fast, obvious failure at the call site instead of a socket-level deadlock. The guard uses `asyncio.get_running_loop()` (no extra deps) and is covered by a hermetic regression test. (OPS-4402)
+
 ## [3.8.2] - 2026-06-23
 
 - [Fixed] `_new_conn` now closes the previous WSS connection before opening a new one, instead of overwriting `self._conn` and abandoning the old socket. On reconnect (when `_sub_routing_loop` sets `wss_conn_halted` and calls `_new_conn`) the orphaned socket lingered half-open on the server — no TCP FIN was ever sent — so the gateway kept fanning subscription events into a dead connection, accumulating an unbounded send buffer/mailbox until it OOMed. A new private `_close_conn` helper best-effort closes `self._conn` and clears the handle; it runs at the top of `_new_conn` so the server receives a FIN and tears down the stale subscription, and is reused by `close()` to drop the duplicated teardown.
