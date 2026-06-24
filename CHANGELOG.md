@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.8.4] - 2026-06-24
+
+- [Fixed] `_ping_pong` send now classifies `ConnectionResetError` / `BrokenPipeError` / `ConnectionAbortedError` / `WebSocketConnectionClosedException` (the `TRANSIENT_WS_ERRORS`) at WARNING instead of ERROR+traceback. The background thread no longer emits noisy ERROR logs with full stacktraces on peer resets (the root cause of the reported "unhandled ConnectionResetError" during `_ping_pong`). Reconnect via `wss_conn_halted` is unchanged; only log level and noise. (OPS-3616)
+- [Changed] Added deterministic regression tests for transient vs. fatal send errors inside `_ping_pong` (modeled exactly on the OPS-3485 recv tests; <100 ms, no sockets, no sleeps). (OPS-3616)
+
 ## [3.8.3] - 2026-06-24
 
 - [Fixed] `query`, `mutate`, `async_query`, and `async_mutate` no longer collapse a raised transport exception into `[{"message": ""}]`. httpx timeout and connection-reset exceptions carry an empty message (`str(httpx.ReadTimeout(""))` is `""`), so the previous `errors = [{"message": str(e)}]` surfaced a blank, undiagnosable error — most visibly on `async_mutate`, where async httpx timeouts always stringify to "". A new `exception_errors` helper falls back to `repr(error)` when the message is blank, preserving the exception class name (e.g. `ReadTimeout('')`) so the caller can tell what actually failed. Added an integration test that drives a real `GraphQLClient` against a local HTTP server stalled past `post_timeout`.
@@ -13,6 +18,7 @@
 - [Fixed] Stale `httpx.AsyncClient` instances are now best-effort `aclose()`d instead of being dropped to the garbage collector. Previously three paths leaked the client's transports: `_get_async_client` when it detected a closed event loop, `async_execute`'s "Event loop is closed" retry, and `_close()`/`__del__`. Orphaned `_SelectorTransport.__del__` socket finalizers then ran during cyclic-GC sweeps on arbitrary threads, contributing to false TMPRL1101 deadlock detections in Temporal workers (see valiot/python-tooling#151). A new private `_drop_async_client()` helper awaits `aclose()` (swallowing failures when the original loop is gone) and is used by `_get_async_client`, the `async_execute` retry, and `async_cleanup`; `_close()` now schedules `aclose()` on the running loop via `call_soon_threadsafe` when one exists, falling back to GC only when no loop is available.
 - [Fixed] `async_cleanup` now actually closes a live async client. Its previous usability probe called `httpx.AsyncClient.get_timeout()`, a method that doesn't exist, so every client went down the "let GC handle it" branch and leaked. (Same broken probe in `_get_async_client` meant the cached client was recreated on every call; recreation now closes the old client first, so nothing leaks.)
 - [Changed] Removed the unused `_close_async_client` private method, superseded by `_drop_async_client`.
+
 
 ## [3.8.0] - 2026-05-28
 
