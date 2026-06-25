@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.4] - 2026-06-25
+
+- [Fixed] `async_execute` retries once on a fresh connection for transient transport errors (`httpx.NetworkError`/`ReadError`, `RemoteProtocolError`, `PoolTimeout`, `ConnectTimeout`) — typically a stale keep-alive socket the server closed, surfacing as `ReadError('')`. `ReadTimeout` is excluded (a slow request would just time out again). Sync `execute` already behaved this way.
+
 ## [3.8.3] - 2026-06-24
 
 - [Fixed] `query`, `mutate`, `async_query`, and `async_mutate` no longer collapse a raised transport exception into `[{"message": ""}]`. httpx timeout and connection-reset exceptions carry an empty message (`str(httpx.ReadTimeout(""))` is `""`), so the previous `errors = [{"message": str(e)}]` surfaced a blank, undiagnosable error — most visibly on `async_mutate`, where async httpx timeouts always stringify to "". A new `exception_errors` helper falls back to `repr(error)` when the message is blank, preserving the exception class name (e.g. `ReadTimeout('')`) so the caller can tell what actually failed. Added an integration test that drives a real `GraphQLClient` against a local HTTP server stalled past `post_timeout`.
