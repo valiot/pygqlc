@@ -39,6 +39,18 @@ TRANSIENT_WS_ERRORS = (
     websocket.WebSocketConnectionClosedException,
 )
 
+# HTTP transport failures where the connection in hand is dead/unusable — most
+# commonly a stale keep-alive socket the server already closed, which surfaces as
+# ReadError/RemoteProtocolError (often with an empty message). A single retry on a
+# fresh connection typically succeeds. ReadTimeout is intentionally excluded: a
+# genuinely slow request would just time out again, doubling the wait.
+TRANSIENT_TRANSPORT_ERRORS = (
+    httpx.NetworkError,  # ReadError, WriteError, ConnectError, CloseError
+    httpx.RemoteProtocolError,  # server closed the connection without a full response
+    httpx.PoolTimeout,
+    httpx.ConnectTimeout,
+)
+
 # * Custom Exception class for GraphQL responses
 
 
@@ -1159,6 +1171,18 @@ class GraphQLClient(metaclass=Singleton):
             # Loop gone / client partially torn down — nothing more we can do
             log(LogLevel.WARNING, f"Warning: Error closing async client: {str(e)}")
 
+    @staticmethod
+    def _should_retry_on_fresh_connection(error: Exception) -> bool:
+        """Whether `error` warrants one retry on a brand-new connection.
+
+        True for a closed event loop and for transient transport failures
+        (`TRANSIENT_TRANSPORT_ERRORS`) — both mean the current connection is
+        unusable but a fresh one is likely to succeed.
+        """
+        if "Event loop is closed" in str(error):
+            return True
+        return isinstance(error, TRANSIENT_TRANSPORT_ERRORS)
+
     async def async_execute(self, query: str, variables: dict | None = None) -> dict:
         """Async version of execute method that executes instructions of a query or mutation.
 
@@ -1196,22 +1220,22 @@ class GraphQLClient(metaclass=Singleton):
                 timeout=float(env.get("post_timeout", 60)),
             )
         except (httpx.RequestError, RuntimeError) as e:
-            # Check if this is an event loop issue or a network issue
-            if "Event loop is closed" in str(e):
-                # Event loop was closed - need to get a new client with a valid loop
-                # Best-effort close the stale client instead of leaking its transports
-                await self._drop_async_client()
-                # Try again with a new client
-                client = await self._get_async_client()
-                response = await client.post(
-                    env["url"],
-                    json=data,
-                    headers=headers,
-                    timeout=float(env.get("post_timeout", 60)),
-                )
-            else:
-                # Some other request error, re-raise
+            # Retry once on a fresh connection when the failure is a closed event
+            # loop or a transient transport error (e.g. a stale keep-alive socket
+            # the server already closed, surfacing as ReadError/RemoteProtocolError).
+            # Anything else (real timeouts, genuine network outages) re-raises.
+            if not self._should_retry_on_fresh_connection(e):
                 raise
+            # Best-effort close the stale client instead of leaking its transports,
+            # then retry once with a brand-new client/connection.
+            await self._drop_async_client()
+            client = await self._get_async_client()
+            response = await client.post(
+                env["url"],
+                json=data,
+                headers=headers,
+                timeout=float(env.get("post_timeout", 60)),
+            )
 
         if response.status_code == 200:
             return orjson.loads(response.content)
