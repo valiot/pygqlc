@@ -39,14 +39,13 @@ TRANSIENT_WS_ERRORS = (
     websocket.WebSocketConnectionClosedException,
 )
 
-# HTTP transport failures where the connection in hand is dead/unusable — most
-# commonly a stale keep-alive socket the server already closed, which surfaces as
-# ReadError/RemoteProtocolError (often with an empty message). A single retry on a
-# fresh connection typically succeeds. ReadTimeout is intentionally excluded: a
-# genuinely slow request would just time out again, doubling the wait.
+# Transport failures where the connection is dead but a fresh one will likely
+# work — commonly a stale keep-alive socket (surfaces as ReadError('')). Retried
+# once on a new connection. ReadTimeout is excluded: a slow request would just
+# time out again.
 TRANSIENT_TRANSPORT_ERRORS = (
     httpx.NetworkError,  # ReadError, WriteError, ConnectError, CloseError
-    httpx.RemoteProtocolError,  # server closed the connection without a full response
+    httpx.RemoteProtocolError,
     httpx.PoolTimeout,
     httpx.ConnectTimeout,
 )
@@ -1173,12 +1172,8 @@ class GraphQLClient(metaclass=Singleton):
 
     @staticmethod
     def _should_retry_on_fresh_connection(error: Exception) -> bool:
-        """Whether `error` warrants one retry on a brand-new connection.
-
-        True for a closed event loop and for transient transport failures
-        (`TRANSIENT_TRANSPORT_ERRORS`) — both mean the current connection is
-        unusable but a fresh one is likely to succeed.
-        """
+        """True when the connection is unusable but a fresh one should work:
+        a closed event loop or a transient transport error."""
         if "Event loop is closed" in str(error):
             return True
         return isinstance(error, TRANSIENT_TRANSPORT_ERRORS)
@@ -1220,14 +1215,10 @@ class GraphQLClient(metaclass=Singleton):
                 timeout=float(env.get("post_timeout", 60)),
             )
         except (httpx.RequestError, RuntimeError) as e:
-            # Retry once on a fresh connection when the failure is a closed event
-            # loop or a transient transport error (e.g. a stale keep-alive socket
-            # the server already closed, surfacing as ReadError/RemoteProtocolError).
-            # Anything else (real timeouts, genuine network outages) re-raises.
+            # Stale keep-alive socket or closed loop: drop the client and retry
+            # once on a fresh connection. ReadTimeout and others re-raise.
             if not self._should_retry_on_fresh_connection(e):
                 raise
-            # Best-effort close the stale client instead of leaking its transports,
-            # then retry once with a brand-new client/connection.
             await self._drop_async_client()
             client = await self._get_async_client()
             response = await client.post(

@@ -1,10 +1,8 @@
-"""A stale/closed connection must be retried once on a fresh connection.
+"""A stale/closed pooled connection must be retried once on a fresh one.
 
-httpx reuses pooled keep-alive connections; when the server has already closed
-one, the next request on it fails immediately with a transient transport error
-(commonly `ReadError`/`RemoteProtocolError`, often with an empty message). A
-single retry on a brand-new connection succeeds. `async_execute` must do that
-retry instead of surfacing the error to the caller.
+When the server has closed a pooled keep-alive connection, the next request
+fails with a transient transport error (e.g. `ReadError('')`). `async_execute`
+should retry once on a new connection instead of surfacing it.
 """
 
 from unittest.mock import AsyncMock
@@ -55,19 +53,24 @@ def test_should_retry_on_fresh_connection(error, expected):
 @pytest.mark.asyncio
 async def test_async_execute_retries_once_on_stale_connection(gql_env, monkeypatch):
     payload = {"data": {"createBulkThings": {"successful": True}}}
-    client = AsyncMock()
-    # First post hits a stale socket (ReadError); the retry on a fresh client succeeds.
-    client.post = AsyncMock(side_effect=[httpx.ReadError(""), _fake_response(payload)])
+    # Two distinct clients: the stale one fails, a brand-new one is used on retry.
+    stale = AsyncMock()
+    stale.post = AsyncMock(side_effect=httpx.ReadError(""))
+    fresh = AsyncMock()
+    fresh.post = AsyncMock(return_value=_fake_response(payload))
 
-    monkeypatch.setattr(gql_env, "_get_async_client", AsyncMock(return_value=client))
+    monkeypatch.setattr(
+        gql_env, "_get_async_client", AsyncMock(side_effect=[stale, fresh])
+    )
     dropped = AsyncMock()
     monkeypatch.setattr(gql_env, "_drop_async_client", dropped)
 
     result = await gql_env.async_execute("query { things { id } }")
 
     assert result == payload
-    assert client.post.call_count == 2  # original + one retry
-    dropped.assert_awaited_once()  # stale client was dropped before retrying
+    stale.post.assert_awaited_once()  # failed on the stale connection
+    fresh.post.assert_awaited_once()  # retried on a brand-new connection
+    dropped.assert_awaited_once()  # stale client dropped before retrying
 
 
 @pytest.mark.asyncio

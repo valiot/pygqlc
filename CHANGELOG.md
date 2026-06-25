@@ -2,7 +2,7 @@
 
 ## [3.8.4] - 2026-06-25
 
-- [Fixed] `async_execute` now retries once on a fresh connection when a request fails with a transient transport error (`httpx.NetworkError` incl. `ReadError`/`ConnectError`, `RemoteProtocolError`, `PoolTimeout`, `ConnectTimeout`), not only on a closed event loop. httpx reuses pooled keep-alive connections; when the server has already closed one, the next request fails immediately — commonly `ReadError('')` with an empty message. Previously that surfaced to the caller (after 3.8.3, as `errors=[{'message': "ReadError('')"}]`); now the stale client is dropped and the request is retried once on a new connection. `ReadTimeout` is deliberately NOT retried (a genuinely slow request would just time out again). Added `_should_retry_on_fresh_connection` helper + `TRANSIENT_TRANSPORT_ERRORS`. The sync `execute` path already retried once on a fresh client, so only the async path changed.
+- [Fixed] `async_execute` retries once on a fresh connection for transient transport errors (`httpx.NetworkError`/`ReadError`, `RemoteProtocolError`, `PoolTimeout`, `ConnectTimeout`) — typically a stale keep-alive socket the server closed, surfacing as `ReadError('')`. `ReadTimeout` is excluded (a slow request would just time out again). Sync `execute` already behaved this way.
 
 ## [3.8.3] - 2026-06-24
 
