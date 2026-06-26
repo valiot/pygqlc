@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.5] - 2026-06-26
+
+- [Fixed] On a transient transport error, `async_execute` retries on the same shared client instead of dropping the whole pool (as 3.8.4 did). Under concurrency the per-error pool drop aborted other in-flight requests and caused a connection-churn storm. Full client rebuild is now reserved for "Event loop is closed".
+
 ## [3.8.4] - 2026-06-25
 
 - [Fixed] `async_execute` retries once on a fresh connection for transient transport errors (`httpx.NetworkError`/`ReadError`, `RemoteProtocolError`, `PoolTimeout`, `ConnectTimeout`) — typically a stale keep-alive socket the server closed, surfacing as `ReadError('')`. `ReadTimeout` is excluded (a slow request would just time out again). Sync `execute` already behaved this way.

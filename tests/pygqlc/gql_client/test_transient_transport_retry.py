@@ -51,16 +51,37 @@ def test_should_retry_on_fresh_connection(error, expected):
 
 
 @pytest.mark.asyncio
-async def test_async_execute_retries_once_on_stale_connection(gql_env, monkeypatch):
+async def test_async_execute_retries_stale_connection_without_dropping_pool(
+    gql_env, monkeypatch
+):
     payload = {"data": {"createBulkThings": {"successful": True}}}
-    # Two distinct clients: the stale one fails, a brand-new one is used on retry.
-    stale = AsyncMock()
-    stale.post = AsyncMock(side_effect=httpx.ReadError(""))
+    # Same shared client: first post hits a stale socket, retry succeeds.
+    client = AsyncMock()
+    client.post = AsyncMock(side_effect=[httpx.ReadError(""), _fake_response(payload)])
+
+    monkeypatch.setattr(gql_env, "_get_async_client", AsyncMock(return_value=client))
+    dropped = AsyncMock()
+    monkeypatch.setattr(gql_env, "_drop_async_client", dropped)
+
+    result = await gql_env.async_execute("query { things { id } }")
+
+    assert result == payload
+    assert client.post.call_count == 2  # retried on the same client
+    dropped.assert_not_awaited()  # shared pool not torn down (avoids churn storm)
+
+
+@pytest.mark.asyncio
+async def test_async_execute_rebuilds_client_on_closed_event_loop(gql_env, monkeypatch):
+    payload = {"data": {"createBulkThings": {"successful": True}}}
+    # A closed event loop DOES invalidate the whole client, so it is dropped and
+    # rebuilt before retrying.
+    dead = AsyncMock()
+    dead.post = AsyncMock(side_effect=RuntimeError("Event loop is closed"))
     fresh = AsyncMock()
     fresh.post = AsyncMock(return_value=_fake_response(payload))
 
     monkeypatch.setattr(
-        gql_env, "_get_async_client", AsyncMock(side_effect=[stale, fresh])
+        gql_env, "_get_async_client", AsyncMock(side_effect=[dead, fresh])
     )
     dropped = AsyncMock()
     monkeypatch.setattr(gql_env, "_drop_async_client", dropped)
@@ -68,9 +89,9 @@ async def test_async_execute_retries_once_on_stale_connection(gql_env, monkeypat
     result = await gql_env.async_execute("query { things { id } }")
 
     assert result == payload
-    stale.post.assert_awaited_once()  # failed on the stale connection
-    fresh.post.assert_awaited_once()  # retried on a brand-new connection
-    dropped.assert_awaited_once()  # stale client dropped before retrying
+    dead.post.assert_awaited_once()
+    fresh.post.assert_awaited_once()
+    dropped.assert_awaited_once()  # whole client rebuilt for a dead event loop
 
 
 @pytest.mark.asyncio

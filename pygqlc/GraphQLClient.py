@@ -1215,12 +1215,15 @@ class GraphQLClient(metaclass=Singleton):
                 timeout=float(env.get("post_timeout", 60)),
             )
         except (httpx.RequestError, RuntimeError) as e:
-            # Stale keep-alive socket or closed loop: drop the client and retry
-            # once on a fresh connection. ReadTimeout and others re-raise.
             if not self._should_retry_on_fresh_connection(e):
                 raise
-            await self._drop_async_client()
-            client = await self._get_async_client()
+            # Retry on the SAME shared client (httpx opens a fresh connection).
+            # Only a closed event loop needs a full rebuild — and it's the only
+            # RuntimeError the predicate admits. Dropping the shared pool per
+            # transient error would churn connections.
+            if isinstance(e, RuntimeError):
+                await self._drop_async_client()
+                client = await self._get_async_client()
             response = await client.post(
                 env["url"],
                 json=data,
