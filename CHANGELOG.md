@@ -2,7 +2,7 @@
 
 ## [3.8.6] - 2026-06-26
 
-- [Fixed] `_get_async_client` now reuses the shared client instead of closing and recreating it on every call. Its liveness probe awaited a non-existent `httpx.AsyncClient.get_timeout()`, so every call raised `AttributeError` and rebuilt the client; under concurrency that closed the client mid-use in other coroutines, surfacing as `RuntimeError("Cannot send a request, as the client has been closed.")`. The client is now rebuilt only when missing or `is_closed` (a dead event loop is still recovered lazily by `async_execute`), and that closed-client error is now retryable.
+- [Fixed] `_get_async_client` reuses the shared client instead of recreating it every call. Its probe awaited a non-existent `get_timeout()`, so every call closed + rebuilt the client — under concurrency that closed it mid-use elsewhere (`Cannot send a request, as the client has been closed.`). Now rebuilt only when missing or `is_closed`, and that error is retryable.
 
 ## [3.8.5] - 2026-06-26
 

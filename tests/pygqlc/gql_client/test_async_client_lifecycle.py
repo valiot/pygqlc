@@ -27,11 +27,7 @@ def client():
 
 @pytest.mark.asyncio
 async def test_get_async_client_reuses_live_client(client):
-    """A live client is reused on every call — never closed and recreated.
-
-    Regression for the broken get_timeout() probe that closed + rebuilt the
-    shared client on every call, churning connections and aborting concurrent
-    requests with "client has been closed"."""
+    """A live client is reused on every call — never closed and recreated."""
     live = AsyncMock()
     live.is_closed = False
     client._async_client = live
@@ -40,9 +36,9 @@ async def test_get_async_client_reuses_live_client(client):
         first = await client._get_async_client()
         second = await client._get_async_client()
 
-    assert first is live and second is live  # same client, reused
-    new_client.assert_not_called()  # no new client created
-    live.aclose.assert_not_awaited()  # live client never closed
+    assert first is live and second is live
+    new_client.assert_not_called()
+    live.aclose.assert_not_awaited()
 
 
 @pytest.mark.asyncio

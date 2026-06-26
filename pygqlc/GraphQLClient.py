@@ -1121,15 +1121,10 @@ class GraphQLClient(metaclass=Singleton):
 
     # * ASYNC METHODS ----------------------------------
     async def _get_async_client(self):
-        """Return the shared async client, creating it once and reusing it.
+        """Return the shared async client, rebuilding only when missing or closed.
 
-        Only rebuilt when it is missing or has been closed. A client whose event
-        loop has since closed surfaces as "Event loop is closed" on the next
-        request, which `async_execute` recovers by dropping and rebuilding — so no
-        per-call liveness probe is needed. (The old probe awaited a non-existent
-        `get_timeout()`, so it closed and recreated the shared client on *every*
-        call; under concurrency that aborted other coroutines' in-flight requests
-        with "client has been closed".)
+        No per-call liveness probe — a dead event loop is recovered lazily by
+        async_execute's retry.
         """
         if self._async_client is None or self._async_client.is_closed:
             self._async_client = httpx.AsyncClient(**self.async_client_params)
