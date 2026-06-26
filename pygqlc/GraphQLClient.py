@@ -1217,12 +1217,9 @@ class GraphQLClient(metaclass=Singleton):
         except (httpx.RequestError, RuntimeError) as e:
             if not self._should_retry_on_fresh_connection(e):
                 raise
-            # Only a closed event loop invalidates the whole client. For a stale
-            # connection, retry on the SAME shared client — httpx discards the
-            # failed connection and opens a fresh one for this request. Dropping
-            # the shared pool here would abort other coroutines' in-flight
-            # requests and, under a sustained failure, cause a connection-churn
-            # storm that overwhelms the server.
+            # Retry on the SAME shared client (httpx opens a fresh connection for
+            # the request). Only a closed event loop needs the whole client
+            # rebuilt — dropping the shared pool per-error churns connections.
             if "Event loop is closed" in str(e):
                 await self._drop_async_client()
                 client = await self._get_async_client()

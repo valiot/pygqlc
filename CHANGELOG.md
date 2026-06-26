@@ -2,7 +2,7 @@
 
 ## [3.8.5] - 2026-06-26
 
-- [Fixed] `async_execute` no longer drops the shared async client on a transient transport error — it retries the request on the same client (httpx opens a fresh connection for it). The 3.8.4 retry called `_drop_async_client()` (closing the whole pool) on every transient error; under concurrency many coroutines did this at once, aborting each other's in-flight requests and causing a connection-churn storm against the server during a sustained failure. The full client rebuild is now reserved for the "Event loop is closed" case, where the client really is unusable.
+- [Fixed] On a transient transport error, `async_execute` retries on the same shared client instead of dropping the whole pool (as 3.8.4 did). Under concurrency the per-error pool drop aborted other in-flight requests and caused a connection-churn storm. Full client rebuild is now reserved for "Event loop is closed".
 
 ## [3.8.4] - 2026-06-25
 

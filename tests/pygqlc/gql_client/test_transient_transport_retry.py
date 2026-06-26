@@ -67,9 +67,7 @@ async def test_async_execute_retries_stale_connection_without_dropping_pool(
 
     assert result == payload
     assert client.post.call_count == 2  # retried on the same client
-    # Crucially: the shared pool is NOT torn down for a stale connection — doing
-    # so under concurrency would abort other in-flight requests (churn storm).
-    dropped.assert_not_awaited()
+    dropped.assert_not_awaited()  # shared pool not torn down (avoids churn storm)
 
 
 @pytest.mark.asyncio
