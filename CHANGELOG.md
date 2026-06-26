@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.5] - 2026-06-26
+
+- [Changed] The HTTP clients now retire idle keep-alive connections after 2s (`httpx.Limits(keepalive_expiry=2.0)`, down from httpx's 5.0 default), tunable via the `PYGQLC_KEEPALIVE_EXPIRY` env var. This stops the client from reusing a socket the server/LB has already closed during an idle gap — the stale keep-alive that surfaces as `ReadError('')`. Hot connections under load are reused within milliseconds, so pooling is preserved; only genuinely idle sockets are dropped. Pairs with the 3.8.4 fresh-connection retry: fewer stale sockets to begin with, so the retry (which is unsafe to apply blindly to non-idempotent mutations) fires far less often.
+
 ## [3.8.4] - 2026-06-25
 
 - [Fixed] `async_execute` retries once on a fresh connection for transient transport errors (`httpx.NetworkError`/`ReadError`, `RemoteProtocolError`, `PoolTimeout`, `ConnectTimeout`) — typically a stale keep-alive socket the server closed, surfacing as `ReadError('')`. `ReadTimeout` is excluded (a slow request would just time out again). Sync `execute` already behaved this way.

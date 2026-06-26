@@ -8,6 +8,7 @@ GQLResponse (type variable): [data[field(string)], errors[message(string),
 """
 
 import asyncio
+import os
 import traceback
 import time
 import threading
@@ -49,6 +50,14 @@ TRANSIENT_TRANSPORT_ERRORS = (
     httpx.PoolTimeout,
     httpx.ConnectTimeout,
 )
+
+# Drop an idle pooled keep-alive connection after this many seconds so we never
+# reuse a socket the server has already closed (the stale keep-alive that
+# surfaces as ReadError('')). httpx defaults to 5.0, which is long enough for a
+# server/LB with a shorter idle timeout to close the socket first. 2.0 sits below
+# any reasonable server idle timeout while still pooling hot connections under
+# load (those are reused within milliseconds). Tunable via PYGQLC_KEEPALIVE_EXPIRY.
+DEFAULT_KEEPALIVE_EXPIRY = 2.0
 
 # * Custom Exception class for GraphQL responses
 
@@ -286,9 +295,21 @@ class GraphQLClient(metaclass=Singleton):
         self.pingIntervalTime = 15
         self.pingTimer = time.time()
 
-        # Setup common client parameters
-        self.client_params = {"http2": True}
-        self.async_client_params = {"http2": True}
+        # Setup common client parameters. Retire idle keep-alive connections
+        # quickly (see DEFAULT_KEEPALIVE_EXPIRY) so a socket the server has
+        # already closed is never reused.
+        keepalive_expiry = float(
+            os.environ.get("PYGQLC_KEEPALIVE_EXPIRY", DEFAULT_KEEPALIVE_EXPIRY)
+        )
+        # Keep httpx's standard pool sizing (passing only keepalive_expiry would
+        # reset both maxes to None / unlimited); just shorten the idle expiry.
+        limits = httpx.Limits(
+            max_connections=100,
+            max_keepalive_connections=20,
+            keepalive_expiry=keepalive_expiry,
+        )
+        self.client_params = {"http2": True, "limits": limits}
+        self.async_client_params = {"http2": True, "limits": limits}
 
         # Reuse HTTP client for better performance
         self._http_client = None
