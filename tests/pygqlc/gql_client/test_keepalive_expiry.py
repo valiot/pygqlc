@@ -48,6 +48,44 @@ def test_keepalive_expiry_env_override(fresh_client, monkeypatch):
 
 
 def test_default_below_httpx_default():
-    # The point of the mitigation: shorter than httpx's 5.0s default so a
+    # The point of the mitigation: shorter than httpx's own default so a
     # server/LB with a shorter idle timeout can't close the socket first.
-    assert DEFAULT_KEEPALIVE_EXPIRY < 5.0
+    # Compare against the live httpx default so this doesn't go stale on upgrades.
+    assert DEFAULT_KEEPALIVE_EXPIRY < httpx.Limits().keepalive_expiry
+
+
+def test_invalid_env_falls_back_to_default(fresh_client, monkeypatch):
+    monkeypatch.setenv("PYGQLC_KEEPALIVE_EXPIRY", "not-a-number")
+    gql = fresh_client()
+    assert gql.client_params["limits"].keepalive_expiry == DEFAULT_KEEPALIVE_EXPIRY
+
+
+def test_negative_env_falls_back_to_default(fresh_client, monkeypatch):
+    monkeypatch.setenv("PYGQLC_KEEPALIVE_EXPIRY", "-5")
+    gql = fresh_client()
+    assert gql.client_params["limits"].keepalive_expiry == DEFAULT_KEEPALIVE_EXPIRY
+
+
+def test_ipv4_only_threads_limits_into_transports(fresh_client, monkeypatch):
+    """In ipv4_only mode a custom transport is installed; httpx ignores the
+    Client-level limits there, so the limits must be passed into the transport."""
+    gql = fresh_client()
+    captured = {}
+
+    def fake_http_transport(**kwargs):
+        captured["sync"] = kwargs
+        return object()
+
+    def fake_async_transport(**kwargs):
+        captured["async"] = kwargs
+        return object()
+
+    monkeypatch.setattr(httpx, "HTTPTransport", fake_http_transport)
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", fake_async_transport)
+
+    gql._update_client_params(ipv4_only=True)
+
+    assert captured["sync"]["limits"] is gql._limits
+    assert captured["async"]["limits"] is gql._limits
+    assert captured["sync"]["local_address"] == "0.0.0.0"
+    assert captured["async"]["local_address"] == "0.0.0.0"

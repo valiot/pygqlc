@@ -2,7 +2,7 @@
 
 ## [3.8.5] - 2026-06-26
 
-- [Changed] The HTTP clients now retire idle keep-alive connections after 2s (`httpx.Limits(keepalive_expiry=2.0)`, down from httpx's 5.0 default), tunable via the `PYGQLC_KEEPALIVE_EXPIRY` env var. This stops the client from reusing a socket the server/LB has already closed during an idle gap — the stale keep-alive that surfaces as `ReadError('')`. Hot connections under load are reused within milliseconds, so pooling is preserved; only genuinely idle sockets are dropped. Pairs with the 3.8.4 fresh-connection retry: fewer stale sockets to begin with, so the retry (which is unsafe to apply blindly to non-idempotent mutations) fires far less often.
+- [Changed] The HTTP clients now retire idle keep-alive connections after 2s (`httpx.Limits(keepalive_expiry=2.0)`, down from httpx's 5.0 default), tunable via the `PYGQLC_KEEPALIVE_EXPIRY` env var (a non-numeric or negative value falls back to the default with a warning). The expiry applies on both the default transport and the `ipv4_only` custom transport — httpx ignores the client-level `limits` when a custom transport is supplied, so the limits are threaded into the transport too. This stops the client from reusing a socket the server/LB has already closed during an idle gap — the stale keep-alive that surfaces as `ReadError('')`. Hot connections under load are reused within milliseconds, so pooling is preserved; only genuinely idle sockets are dropped. Pairs with the 3.8.4 fresh-connection retry: fewer stale sockets to begin with, so the retry (which is unsafe to apply blindly to non-idempotent mutations) fires far less often.
 
 ## [3.8.4] - 2026-06-25
 
