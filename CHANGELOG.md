@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.6] - 2026-06-26
+
+- [Fixed] `_get_async_client` reuses the shared client instead of recreating it every call. Its probe awaited a non-existent `get_timeout()`, so every call closed + rebuilt the client — under concurrency that closed it mid-use elsewhere (`Cannot send a request, as the client has been closed.`). Now rebuilt only when missing or `is_closed`, and that error is retryable.
+
 ## [3.8.5] - 2026-06-26
 
 - [Fixed] On a transient transport error, `async_execute` retries on the same shared client instead of dropping the whole pool (as 3.8.4 did). Under concurrency the per-error pool drop aborted other in-flight requests and caused a connection-churn storm. Full client rebuild is now reserved for "Event loop is closed".

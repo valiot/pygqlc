@@ -42,6 +42,7 @@ def gql_env():
         (httpx.PoolTimeout(""), True),
         (httpx.ConnectError(""), True),
         (RuntimeError("Event loop is closed"), True),
+        (RuntimeError("Cannot send a request, as the client has been closed."), True),
         (httpx.ReadTimeout(""), False),  # genuine slow request — don't auto-retry
         (ValueError("nope"), False),
     ],
