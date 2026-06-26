@@ -26,18 +26,36 @@ def client():
 
 
 @pytest.mark.asyncio
-async def test_get_async_client_closes_stale_client_before_replacing(client):
-    """When the existing client's loop is detected closed, _get_async_client must
-    aclose() it before creating a replacement — not silently drop it to GC."""
-    stale = AsyncMock()
-    stale.get_timeout.side_effect = RuntimeError("Event loop is closed")
-    client._async_client = stale
+async def test_get_async_client_reuses_live_client(client):
+    """A live client is reused on every call — never closed and recreated.
+
+    Regression for the broken get_timeout() probe that closed + rebuilt the
+    shared client on every call, churning connections and aborting concurrent
+    requests with "client has been closed"."""
+    live = AsyncMock()
+    live.is_closed = False
+    client._async_client = live
+
+    with patch("pygqlc.GraphQLClient.httpx.AsyncClient") as new_client:
+        first = await client._get_async_client()
+        second = await client._get_async_client()
+
+    assert first is live and second is live  # same client, reused
+    new_client.assert_not_called()  # no new client created
+    live.aclose.assert_not_awaited()  # live client never closed
+
+
+@pytest.mark.asyncio
+async def test_get_async_client_replaces_closed_client(client):
+    """A client that has been closed is replaced with a fresh one."""
+    closed = AsyncMock()
+    closed.is_closed = True
+    client._async_client = closed
 
     fresh = AsyncMock()
     with patch("pygqlc.GraphQLClient.httpx.AsyncClient", return_value=fresh):
         result = await client._get_async_client()
 
-    stale.aclose.assert_awaited_once()
     assert result is fresh
 
 
@@ -46,6 +64,7 @@ async def test_async_execute_retry_closes_stale_client(client):
     """The 'Event loop is closed' retry path in async_execute must aclose() the
     stale client before retrying with a new one."""
     stale = AsyncMock()
+    stale.is_closed = False  # live, so _get_async_client returns it (then .post fails)
     stale.post.side_effect = RuntimeError("Event loop is closed")
     client._async_client = stale
 

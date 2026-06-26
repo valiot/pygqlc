@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.6] - 2026-06-26
+
+- [Fixed] `_get_async_client` now reuses the shared client instead of closing and recreating it on every call. Its liveness probe awaited a non-existent `httpx.AsyncClient.get_timeout()`, so every call raised `AttributeError` and rebuilt the client; under concurrency that closed the client mid-use in other coroutines, surfacing as `RuntimeError("Cannot send a request, as the client has been closed.")`. The client is now rebuilt only when missing or `is_closed` (a dead event loop is still recovered lazily by `async_execute`), and that closed-client error is now retryable.
+
 ## [3.8.5] - 2026-06-26
 
 - [Fixed] On a transient transport error, `async_execute` retries on the same shared client instead of dropping the whole pool (as 3.8.4 did). Under concurrency the per-error pool drop aborted other in-flight requests and caused a connection-churn storm. Full client rebuild is now reserved for "Event loop is closed".
