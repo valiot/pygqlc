@@ -8,6 +8,7 @@ GQLResponse (type variable): [data[field(string)], errors[message(string),
 """
 
 import asyncio
+import os
 import traceback
 import time
 import threading
@@ -49,6 +50,44 @@ TRANSIENT_TRANSPORT_ERRORS = (
     httpx.PoolTimeout,
     httpx.ConnectTimeout,
 )
+
+# Drop an idle pooled keep-alive connection after this many seconds so we never
+# reuse a socket the server has already closed (the stale keep-alive that
+# surfaces as ReadError('')). httpx defaults to 5.0, which is long enough for a
+# server/LB with a shorter idle timeout to close the socket first. 2.0 sits below
+# any reasonable server idle timeout while still pooling hot connections under
+# load (those are reused within milliseconds). Tunable via PYGQLC_KEEPALIVE_EXPIRY.
+DEFAULT_KEEPALIVE_EXPIRY = 2.0
+
+
+def _resolve_keepalive_expiry() -> float:
+    """Idle keep-alive expiry (seconds) from the PYGQLC_KEEPALIVE_EXPIRY env var.
+
+    Falls back to DEFAULT_KEEPALIVE_EXPIRY (with a WARNING) on a non-numeric or
+    negative value, so a misconfigured env var degrades to the safe default
+    instead of crashing GraphQLClient construction (and the worker) at startup.
+    """
+    raw = os.environ.get("PYGQLC_KEEPALIVE_EXPIRY")
+    if raw is None:
+        return DEFAULT_KEEPALIVE_EXPIRY
+    try:
+        value = float(raw)
+    except ValueError:
+        log(
+            LogLevel.WARNING,
+            f"Invalid PYGQLC_KEEPALIVE_EXPIRY={raw!r} (not a number); "
+            f"using default {DEFAULT_KEEPALIVE_EXPIRY}s",
+        )
+        return DEFAULT_KEEPALIVE_EXPIRY
+    if value < 0:
+        log(
+            LogLevel.WARNING,
+            f"Invalid PYGQLC_KEEPALIVE_EXPIRY={raw!r} (negative); "
+            f"using default {DEFAULT_KEEPALIVE_EXPIRY}s",
+        )
+        return DEFAULT_KEEPALIVE_EXPIRY
+    return value
+
 
 # * Custom Exception class for GraphQL responses
 
@@ -286,9 +325,20 @@ class GraphQLClient(metaclass=Singleton):
         self.pingIntervalTime = 15
         self.pingTimer = time.time()
 
-        # Setup common client parameters
-        self.client_params = {"http2": True}
-        self.async_client_params = {"http2": True}
+        # Setup common client parameters. Retire idle keep-alive connections
+        # quickly (see DEFAULT_KEEPALIVE_EXPIRY) so a socket the server has
+        # already closed is never reused. Stashed on self so _update_client_params
+        # can thread the same limits into a custom transport (ipv4_only), where
+        # httpx ignores the Client-level `limits` kwarg.
+        # Keep httpx's standard pool sizing (passing only keepalive_expiry would
+        # reset both maxes to None / unlimited); just shorten the idle expiry.
+        self._limits = httpx.Limits(
+            max_connections=100,
+            max_keepalive_connections=20,
+            keepalive_expiry=_resolve_keepalive_expiry(),
+        )
+        self.client_params = {"http2": True, "limits": self._limits}
+        self.async_client_params = {"http2": True, "limits": self._limits}
 
         # Reuse HTTP client for better performance
         self._http_client = None
@@ -963,11 +1013,17 @@ class GraphQLClient(metaclass=Singleton):
             # Binding the local egress address to 0.0.0.0 forces httpx to use an
             # IPv4 source socket (the standard idiom for IPv4-only egress). This is
             # not a listening socket, so the bind-all-interfaces concern does not apply.
+            # httpx applies the Client-level `limits` only to its *default*
+            # transport; with a custom transport the limits kwarg is ignored, so
+            # pass our limits (keepalive_expiry) into the transport itself or the
+            # mitigation is silently dropped on this path.
             self.client_params["transport"] = httpx.HTTPTransport(
-                local_address="0.0.0.0"  # nosec B104
+                local_address="0.0.0.0",  # nosec B104
+                limits=self._limits,
             )
             self.async_client_params["transport"] = httpx.AsyncHTTPTransport(
-                local_address="0.0.0.0"  # nosec B104
+                local_address="0.0.0.0",  # nosec B104
+                limits=self._limits,
             )
         else:
             # Remove transport if it exists
