@@ -1177,36 +1177,13 @@ class GraphQLClient(metaclass=Singleton):
 
     # * ASYNC METHODS ----------------------------------
     async def _get_async_client(self):
-        """Get or create a reusable async HTTP client for better performance
+        """Return the shared async client, rebuilding only when missing or closed.
 
-        Detects if the event loop has been closed (which can happen in test environments)
-        and creates a new client if necessary.
+        No per-call liveness probe — a dead event loop is recovered lazily by
+        async_execute's retry.
         """
-        new_client_needed = False
-
-        # Check if client exists
-        if self._async_client is None:
-            new_client_needed = True
-        else:
-            # Check if client's event loop is closed
-            try:
-                # Make a simple request to check if client is still usable
-                # This will fail with "Event loop is closed" if the loop is closed
-                await self._async_client.get_timeout()
-            except (RuntimeError, AttributeError) as e:
-                if "Event loop is closed" in str(e) or "has no attribute" in str(e):
-                    # Event loop closed or client has been partially destroyed
-                    # Create a new client, best-effort closing the old one first
-                    new_client_needed = True
-                    await self._drop_async_client()
-                else:
-                    # Some other error, re-raise
-                    raise
-
-        # Create a new client if needed
-        if new_client_needed:
+        if self._async_client is None or self._async_client.is_closed:
             self._async_client = httpx.AsyncClient(**self.async_client_params)
-
         return self._async_client
 
     async def _drop_async_client(self):
@@ -1229,8 +1206,9 @@ class GraphQLClient(metaclass=Singleton):
     @staticmethod
     def _should_retry_on_fresh_connection(error: Exception) -> bool:
         """True when the connection is unusable but a fresh one should work:
-        a closed event loop or a transient transport error."""
-        if "Event loop is closed" in str(error):
+        a closed/closed-down client or a transient transport error."""
+        msg = str(error)
+        if "Event loop is closed" in msg or "client has been closed" in msg:
             return True
         return isinstance(error, TRANSIENT_TRANSPORT_ERRORS)
 
@@ -1271,12 +1249,15 @@ class GraphQLClient(metaclass=Singleton):
                 timeout=float(env.get("post_timeout", 60)),
             )
         except (httpx.RequestError, RuntimeError) as e:
-            # Stale keep-alive socket or closed loop: drop the client and retry
-            # once on a fresh connection. ReadTimeout and others re-raise.
             if not self._should_retry_on_fresh_connection(e):
                 raise
-            await self._drop_async_client()
-            client = await self._get_async_client()
+            # Retry on the SAME shared client (httpx opens a fresh connection).
+            # Only a closed event loop needs a full rebuild — and it's the only
+            # RuntimeError the predicate admits. Dropping the shared pool per
+            # transient error would churn connections.
+            if isinstance(e, RuntimeError):
+                await self._drop_async_client()
+                client = await self._get_async_client()
             response = await client.post(
                 env["url"],
                 json=data,

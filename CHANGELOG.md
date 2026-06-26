@@ -1,8 +1,16 @@
 # CHANGELOG
 
-## [3.8.5] - 2026-06-26
+## [3.8.7] - 2026-06-26
 
 - [Changed] The HTTP clients now retire idle keep-alive connections after 2s (`httpx.Limits(keepalive_expiry=2.0)`, down from httpx's 5.0 default), tunable via the `PYGQLC_KEEPALIVE_EXPIRY` env var (a non-numeric or negative value falls back to the default with a warning). The expiry applies on both the default transport and the `ipv4_only` custom transport — httpx ignores the client-level `limits` when a custom transport is supplied, so the limits are threaded into the transport too. This stops the client from reusing a socket the server/LB has already closed during an idle gap — the stale keep-alive that surfaces as `ReadError('')`. Hot connections under load are reused within milliseconds, so pooling is preserved; only genuinely idle sockets are dropped. Pairs with the 3.8.4 fresh-connection retry: fewer stale sockets to begin with, so the retry (which is unsafe to apply blindly to non-idempotent mutations) fires far less often.
+
+## [3.8.6] - 2026-06-26
+
+- [Fixed] `_get_async_client` reuses the shared client instead of recreating it every call. Its probe awaited a non-existent `get_timeout()`, so every call closed + rebuilt the client — under concurrency that closed it mid-use elsewhere (`Cannot send a request, as the client has been closed.`). Now rebuilt only when missing or `is_closed`, and that error is retryable.
+
+## [3.8.5] - 2026-06-26
+
+- [Fixed] On a transient transport error, `async_execute` retries on the same shared client instead of dropping the whole pool (as 3.8.4 did). Under concurrency the per-error pool drop aborted other in-flight requests and caused a connection-churn storm. Full client rebuild is now reserved for "Event loop is closed".
 
 ## [3.8.4] - 2026-06-25
 
