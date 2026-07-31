@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.7] - 2026-07-31
+
+- [Fixed] `async_execute` now recovers when the shared `httpx.AsyncClient`'s internal asyncio primitive (the connection-pool `Event`/`Lock`) is bound to a different event loop than the one it's being called from. The shared `GraphQLClient` is a long-lived singleton, so its `_async_client` is first bound to whichever loop touches it (a Temporal worker's loop). When a caller later runs on a fresh loop — `valuechainos_queues`'s `trigger_by_subscription` creates one per subscription callback via `asyncio.run()` — `client.post(...)` raises `RuntimeError: <asyncio.locks.Event object …> is bound to a different event loop`, which surfaced as `get_workflow_config` failing every `QUEUE_REPLENISHMENT_FOR_CSV_REPORT` trigger (OPS-5447). `_should_retry_on_fresh_connection` now admits that message alongside "Event loop is closed" / "client has been closed", so `async_execute` drops the stale client and rebuilds it on the current loop before retrying — the same recovery path already used for a closed loop. (OPS-5447)
+
 ## [3.8.6] - 2026-06-26
 
 - [Fixed] `_get_async_client` reuses the shared client instead of recreating it every call. Its probe awaited a non-existent `get_timeout()`, so every call closed + rebuilt the client — under concurrency that closed it mid-use elsewhere (`Cannot send a request, as the client has been closed.`). Now rebuilt only when missing or `is_closed`, and that error is retryable.

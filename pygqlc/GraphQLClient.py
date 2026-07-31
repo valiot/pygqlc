@@ -1150,9 +1150,14 @@ class GraphQLClient(metaclass=Singleton):
     @staticmethod
     def _should_retry_on_fresh_connection(error: Exception) -> bool:
         """True when the connection is unusable but a fresh one should work:
-        a closed/closed-down client or a transient transport error."""
+        a closed/closed-down client, an asyncio primitive bound to a different
+        (dead) event loop, or a transient transport error."""
         msg = str(error)
-        if "Event loop is closed" in msg or "client has been closed" in msg:
+        if (
+            "Event loop is closed" in msg
+            or "client has been closed" in msg
+            or "is bound to a different event loop" in msg
+        ):
             return True
         return isinstance(error, TRANSIENT_TRANSPORT_ERRORS)
 
@@ -1196,9 +1201,9 @@ class GraphQLClient(metaclass=Singleton):
             if not self._should_retry_on_fresh_connection(e):
                 raise
             # Retry on the SAME shared client (httpx opens a fresh connection).
-            # Only a closed event loop needs a full rebuild — and it's the only
-            # RuntimeError the predicate admits. Dropping the shared pool per
-            # transient error would churn connections.
+            # Only a dead/wrong event loop needs a full rebuild — and those are
+            # the only RuntimeErrors the predicate admits. Dropping the shared
+            # pool per transient transport error would churn connections.
             if isinstance(e, RuntimeError):
                 await self._drop_async_client()
                 client = await self._get_async_client()

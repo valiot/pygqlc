@@ -43,6 +43,16 @@ def gql_env():
         (httpx.ConnectError(""), True),
         (RuntimeError("Event loop is closed"), True),
         (RuntimeError("Cannot send a request, as the client has been closed."), True),
+        # An asyncio primitive (httpx/httpcore's connection-pool Event/Lock) is
+        # bound to the loop the shared client was first used on; calling from a
+        # fresh loop (asyncio.run per callback, a Temporal loop vs. a listener
+        # loop) raises this — a fresh client on the current loop is the fix.
+        (
+            RuntimeError(
+                "<asyncio.locks.Event object at 0x7f218c298650 [unset]> is bound to a different event loop"
+            ),
+            True,
+        ),
         (httpx.ReadTimeout(""), False),  # genuine slow request — don't auto-retry
         (ValueError("nope"), False),
     ],
@@ -93,6 +103,39 @@ async def test_async_execute_rebuilds_client_on_closed_event_loop(gql_env, monke
     dead.post.assert_awaited_once()
     fresh.post.assert_awaited_once()
     dropped.assert_awaited_once()  # whole client rebuilt for a dead event loop
+
+
+@pytest.mark.asyncio
+async def test_async_execute_rebuilds_client_on_bound_to_different_event_loop(
+    gql_env, monkeypatch
+):
+    payload = {"data": {"createBulkThings": {"successful": True}}}
+    # The shared client's internal asyncio primitive is bound to a prior loop
+    # (the long-lived GraphQLClient was first used on another event loop). Like
+    # a closed event loop, this invalidates the whole client, so it is dropped
+    # and rebuilt on the current loop before retrying.
+    stale = AsyncMock()
+    stale.post = AsyncMock(
+        side_effect=RuntimeError(
+            "<asyncio.locks.Event object at 0x7f218c298650 [unset]> "
+            "is bound to a different event loop"
+        )
+    )
+    fresh = AsyncMock()
+    fresh.post = AsyncMock(return_value=_fake_response(payload))
+
+    monkeypatch.setattr(
+        gql_env, "_get_async_client", AsyncMock(side_effect=[stale, fresh])
+    )
+    dropped = AsyncMock()
+    monkeypatch.setattr(gql_env, "_drop_async_client", dropped)
+
+    result = await gql_env.async_execute("query { things { id } }")
+
+    assert result == payload
+    stale.post.assert_awaited_once()
+    fresh.post.assert_awaited_once()
+    dropped.assert_awaited_once()  # whole client rebuilt for a loop-bound primitive
 
 
 @pytest.mark.asyncio
