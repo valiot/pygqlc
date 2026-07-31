@@ -9,6 +9,7 @@ GQLResponse (type variable): [data[field(string)], errors[message(string),
 
 import asyncio
 import traceback
+import weakref
 import time
 import threading
 from functools import lru_cache
@@ -293,7 +294,12 @@ class GraphQLClient(metaclass=Singleton):
         # Reuse HTTP client for better performance
         self._http_client = None
         self._thread_local = threading.local()
-        self._async_client = None
+        # One async client PER EVENT LOOP: httpx.AsyncClient's pool primitives bind to
+        # the loop that first uses them, so a client shared across loops fails with
+        # "<asyncio.locks.Event ...> is bound to a different event loop" (e.g. a worker's
+        # main loop plus a subscription thread running asyncio.run per callback).
+        # Weak keys: a GC'd loop drops its client reference with it.
+        self._async_clients = weakref.WeakKeyDictionary()
 
         # Configure sleep time for polling loops
         self.poll_interval = 0.005  # reduced from 0.01 for faster response
@@ -1121,24 +1127,34 @@ class GraphQLClient(metaclass=Singleton):
 
     # * ASYNC METHODS ----------------------------------
     async def _get_async_client(self):
-        """Return the shared async client, rebuilding only when missing or closed.
+        """Return the RUNNING loop's async client, rebuilding only when missing or closed.
 
-        No per-call liveness probe — a dead event loop is recovered lazily by
-        async_execute's retry.
+        One client per event loop (never shared): the client's connection-pool
+        primitives bind to the loop that first awaits them, so reuse from another
+        loop raises "is bound to a different event loop". Within a loop the client
+        is reused as before. No per-call liveness probe — a dead event loop is
+        recovered lazily by async_execute's retry.
         """
-        if self._async_client is None or self._async_client.is_closed:
-            self._async_client = httpx.AsyncClient(**self.async_client_params)
-        return self._async_client
+        loop = asyncio.get_running_loop()
+        client = self._async_clients.get(loop)
+        if client is None or client.is_closed:
+            client = httpx.AsyncClient(**self.async_client_params)
+            self._async_clients[loop] = client
+        return client
 
     async def _drop_async_client(self):
-        """Best-effort aclose() of the current async client before dropping it.
+        """Best-effort aclose() of the RUNNING loop's async client before dropping it.
 
         Closing may fail when the client's original event loop is gone; transports
         are then unavoidably left to GC, but every avoidable path closes promptly
         so socket finalizers don't pile up for the cyclic GC (TMPRL1101 fallout in
         Temporal workers — see valiot/python-tooling#151).
         """
-        client, self._async_client = self._async_client, None
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        client = self._async_clients.pop(loop, None)
         if client is None:
             return
         try:
@@ -1152,7 +1168,13 @@ class GraphQLClient(metaclass=Singleton):
         """True when the connection is unusable but a fresh one should work:
         a closed/closed-down client or a transient transport error."""
         msg = str(error)
-        if "Event loop is closed" in msg or "client has been closed" in msg:
+        if (
+            "Event loop is closed" in msg
+            or "client has been closed" in msg
+            # Defensive: cannot arise with per-loop clients, but if stale cross-loop
+            # state ever surfaces, drop-and-rebuild self-heals instead of failing.
+            or "is bound to a different event loop" in msg
+        ):
             return True
         return isinstance(error, TRANSIENT_TRANSPORT_ERRORS)
 
@@ -1326,17 +1348,21 @@ class GraphQLClient(metaclass=Singleton):
             except Exception:  # pylint: disable=broad-except
                 pass
 
-        # For the async client we can't await here. If this thread has a running
-        # event loop (e.g. __del__ triggered by GC inside a loop thread), schedule
-        # aclose() on it; otherwise the transports are left to GC, as before.
-        # __del__ can run on any thread, hence call_soon_threadsafe.
-        if hasattr(self, "_async_client") and self._async_client is not None:
-            client, self._async_client = self._async_client, None
-            try:
-                loop = asyncio.get_running_loop()
-                loop.call_soon_threadsafe(lambda: loop.create_task(client.aclose()))
-            except Exception:  # pylint: disable=broad-except
-                pass  # no usable loop — GC fallback, as before
+        # For the async clients we can't await here. Schedule aclose() on each
+        # client's OWN loop when that loop is still open; a closed/gone loop's
+        # transports are left to GC, as before. __del__ can run on any thread,
+        # hence call_soon_threadsafe.
+        if hasattr(self, "_async_clients"):
+            clients = list(self._async_clients.items())
+            self._async_clients.clear()
+            for loop, client in clients:
+                try:
+                    if not loop.is_closed():
+                        loop.call_soon_threadsafe(
+                            lambda l=loop, c=client: l.create_task(c.aclose())
+                        )
+                except Exception:  # pylint: disable=broad-except
+                    pass  # no usable loop — GC fallback, as before
 
     def __del__(self):
         """Cleanup resources when the instance is being destroyed"""

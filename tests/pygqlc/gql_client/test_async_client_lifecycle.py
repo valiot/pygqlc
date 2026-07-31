@@ -3,6 +3,9 @@ leaked to GC. Orphaned transports' _SelectorTransport.__del__ finalizers run
 during cyclic-GC sweeps on arbitrary threads, which contributed to false
 TMPRL1101 deadlocks in Temporal workers (see valiot/python-tooling#151).
 
+Clients are registered PER EVENT LOOP (see test_async_client_per_loop.py for
+the cross-loop contract); these tests seed the running loop's slot directly.
+
 Hermetic: no real sockets, no sleeps."""
 
 import asyncio
@@ -21,8 +24,17 @@ def client():
     gql = GraphQLClient()
     gql.addEnvironment("lifecycle-test", url="http://ex", default=True)
     yield gql
-    gql._async_client = None  # never let teardown touch a mock
+    gql._async_clients.clear()  # never let teardown touch a mock
     Singleton._instances.pop(GraphQLClient, None)
+
+
+def _seed(gql, mock_client):
+    """Register a mock client for the RUNNING loop (what _get_async_client keys by)."""
+    gql._async_clients[asyncio.get_running_loop()] = mock_client
+
+
+def _current(gql):
+    return gql._async_clients.get(asyncio.get_running_loop())
 
 
 @pytest.mark.asyncio
@@ -30,7 +42,7 @@ async def test_get_async_client_reuses_live_client(client):
     """A live client is reused on every call — never closed and recreated."""
     live = AsyncMock()
     live.is_closed = False
-    client._async_client = live
+    _seed(client, live)
 
     with patch("pygqlc.GraphQLClient.httpx.AsyncClient") as new_client:
         first = await client._get_async_client()
@@ -46,7 +58,7 @@ async def test_get_async_client_replaces_closed_client(client):
     """A client that has been closed is replaced with a fresh one."""
     closed = AsyncMock()
     closed.is_closed = True
-    client._async_client = closed
+    _seed(client, closed)
 
     fresh = AsyncMock()
     with patch("pygqlc.GraphQLClient.httpx.AsyncClient", return_value=fresh):
@@ -62,7 +74,7 @@ async def test_async_execute_retry_closes_stale_client(client):
     stale = AsyncMock()
     stale.is_closed = False  # live, so _get_async_client returns it (then .post fails)
     stale.post.side_effect = RuntimeError("Event loop is closed")
-    client._async_client = stale
+    _seed(client, stale)
 
     response = MagicMock(status_code=200, content=b'{"data": {"ok": true}}')
     fresh = AsyncMock()
@@ -77,14 +89,14 @@ async def test_async_execute_retry_closes_stale_client(client):
 
 
 @pytest.mark.asyncio
-async def test_close_schedules_aclose_on_running_loop(client):
-    """_close() (sync, called by __del__) must schedule aclose() on the running
-    loop instead of dropping the client to GC."""
+async def test_close_schedules_aclose_on_client_loop(client):
+    """_close() (sync, called by __del__) must schedule aclose() on the client's
+    own loop instead of dropping the client to GC."""
     stale = AsyncMock()
-    client._async_client = stale
+    _seed(client, stale)
 
     client._close()
-    assert client._async_client is None
+    assert _current(client) is None
 
     # Let the call_soon_threadsafe callback and the task it creates run.
     await asyncio.sleep(0)
@@ -93,14 +105,17 @@ async def test_close_schedules_aclose_on_running_loop(client):
     stale.aclose.assert_awaited_once()
 
 
-def test_close_without_running_loop_falls_back_to_gc(client):
-    """_close() outside any event loop must not raise — GC fallback as before."""
+def test_close_with_closed_origin_loop_falls_back_to_gc(client):
+    """_close() must not raise when a client's origin loop is already closed —
+    its transports are left to GC, as before."""
+    dead_loop = asyncio.new_event_loop()
+    dead_loop.close()
     stale = AsyncMock()
-    client._async_client = stale
+    client._async_clients[dead_loop] = stale
 
     client._close()
 
-    assert client._async_client is None
+    assert client._async_clients.get(dead_loop) is None
     stale.aclose.assert_not_awaited()
 
 
@@ -110,12 +125,12 @@ async def test_drop_async_client_swallows_aclose_errors(client):
     still dropped."""
     stale = AsyncMock()
     stale.aclose.side_effect = RuntimeError("Event loop is closed")
-    client._async_client = stale
+    _seed(client, stale)
 
     await client._drop_async_client()
 
     stale.aclose.assert_awaited_once()
-    assert client._async_client is None
+    assert _current(client) is None
 
 
 @pytest.mark.asyncio
@@ -123,9 +138,9 @@ async def test_async_cleanup_closes_client(client):
     """async_cleanup must actually aclose() a live client (previously the broken
     get_timeout probe sent every client down the 'let GC handle it' branch)."""
     stale = AsyncMock()
-    client._async_client = stale
+    _seed(client, stale)
 
     await client.async_cleanup()
 
     stale.aclose.assert_awaited_once()
-    assert client._async_client is None
+    assert _current(client) is None
