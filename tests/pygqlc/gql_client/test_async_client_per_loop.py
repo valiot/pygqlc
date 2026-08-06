@@ -40,7 +40,10 @@ def test_each_loop_gets_its_own_client(client):
     async def grab():
         seen.append(await client._get_async_client())
 
-    with patch("pygqlc.GraphQLClient.httpx.AsyncClient", side_effect=lambda **_: AsyncMock(is_closed=False)):
+    with patch(
+        "pygqlc.GraphQLClient.httpx.AsyncClient",
+        side_effect=lambda **_: AsyncMock(is_closed=False),
+    ):
         asyncio.run(grab())
         asyncio.run(grab())
 
@@ -57,7 +60,8 @@ def test_same_loop_reuses_its_client(client):
         seen.append(await client._get_async_client())
 
     with patch(
-        "pygqlc.GraphQLClient.httpx.AsyncClient", side_effect=lambda **_: AsyncMock(is_closed=False)
+        "pygqlc.GraphQLClient.httpx.AsyncClient",
+        side_effect=lambda **_: AsyncMock(is_closed=False),
     ) as ctor:
         asyncio.run(grab_twice())
 
@@ -77,10 +81,32 @@ def test_async_execute_across_loops_posts_on_each_loops_client(client):
         created.append(mock)
         return mock
 
-    with patch("pygqlc.GraphQLClient.httpx.AsyncClient", side_effect=make_client) as ctor:
+    with patch(
+        "pygqlc.GraphQLClient.httpx.AsyncClient", side_effect=make_client
+    ) as ctor:
         asyncio.run(client.async_execute("query { ok }"))
         asyncio.run(client.async_execute("query { ok }"))
 
     assert ctor.call_count == 2, "second loop must build its own client"
     created[0].post.assert_awaited_once()
     created[1].post.assert_awaited_once()
+
+
+def test_stale_loops_client_is_released_without_awaiting_on_its_dead_loop(client):
+    """The first loop's client is dropped, not awaited: its loop is closed by the
+    time the second run starts, so any aclose() there would itself raise."""
+    response = MagicMock(status_code=200, content=b'{"data": {"ok": true}}')
+    created = []
+
+    def make_client(**_):
+        mock = AsyncMock(is_closed=False)
+        mock.post.return_value = response
+        created.append(mock)
+        return mock
+
+    with patch("pygqlc.GraphQLClient.httpx.AsyncClient", side_effect=make_client):
+        asyncio.run(client.async_execute("query { ok }"))
+        asyncio.run(client.async_execute("query { ok }"))
+
+    created[0].aclose.assert_not_awaited()
+    assert created[0].post.await_count == 1, "dead loop's client must not be reused"

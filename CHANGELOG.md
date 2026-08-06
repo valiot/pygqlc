@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.8.8] - 2026-08-06
+
+- [Fixed] The retry-on-fresh-connection predicate now also admits CPython's second cross-loop wording, `RuntimeError: Task ... got Future ... attached to a different loop` (`asyncio/tasks.py`), alongside 3.8.7's `is bound to a different event loop` (`asyncio/mixins.py`). 3.8.7's per-loop client cache is what actually prevents cross-loop reuse and remains the fix; this only completes the defensive belt, so any stale cross-loop state that still reaches a request self-heals via drop-and-rebuild instead of escaping to the caller — where `async_query`/`async_mutate` fold it into a GraphQL error list and it reads as an unexplained blank failure. Observed against 3.8.6 in a Temporal worker running each activity through its own `asyncio.run` (a fresh loop per run against a process-shared client).
+
 ## [3.8.7] - 2026-07-30
 
 - [Fixed] The cached async client is now PER EVENT LOOP. 3.8.6's shared client bound its httpx connection-pool primitives to whichever loop first used it; any consumer running coroutines on more than one loop — e.g. a Temporal worker's main loop plus a subscription callback thread using `asyncio.run` per event (valuechainos-queues' `trigger_by_subscription`) — then failed with `RuntimeError: <asyncio.locks.Event ...> is bound to a different event loop` (observed live as `Error processing workflow QUEUE_REPLENISHMENT_FOR_CSV_REPORT`). Each loop now gets (and reuses) its own client; per-loop reuse keeps 3.8.6's no-churn goal, `_close()` schedules `aclose()` on each client's own loop, and "is bound to a different event loop" joined the retryable-on-fresh-connection predicate as a defensive self-heal.

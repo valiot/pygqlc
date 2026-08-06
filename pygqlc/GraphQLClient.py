@@ -1173,7 +1173,10 @@ class GraphQLClient(metaclass=Singleton):
             or "client has been closed" in msg
             # Defensive: cannot arise with per-loop clients, but if stale cross-loop
             # state ever surfaces, drop-and-rebuild self-heals instead of failing.
+            # Both wordings CPython emits: asyncio/mixins.py for a pool primitive,
+            # asyncio/tasks.py when a Task awaits another loop's Future.
             or "is bound to a different event loop" in msg
+            or "attached to a different loop" in msg
         ):
             return True
         return isinstance(error, TRANSIENT_TRANSPORT_ERRORS)
