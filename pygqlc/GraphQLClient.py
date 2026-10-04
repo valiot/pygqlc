@@ -40,15 +40,15 @@ TRANSIENT_WS_ERRORS = (
     websocket.WebSocketConnectionClosedException,
 )
 
-# Transport failures where the connection is dead but a fresh one will likely
-# work — commonly a stale keep-alive socket (surfaces as ReadError('')). Retried
-# once on a new connection. ReadTimeout is excluded: a slow request would just
-# time out again.
-TRANSIENT_TRANSPORT_ERRORS = (
-    httpx.NetworkError,  # ReadError, WriteError, ConnectError, CloseError
-    httpx.RemoteProtocolError,
-    httpx.PoolTimeout,
+# Transport failures raised before the request left the client: no connection
+# was ever made, so the server cannot have run it and sending it again is safe
+# even for a mutation. Every other failure (ReadError, ReadTimeout,
+# RemoteProtocolError, WriteError, ...) can follow a request the server already
+# committed, so it is raised to the caller instead of being sent twice.
+UNSENT_TRANSPORT_ERRORS = (
+    httpx.ConnectError,
     httpx.ConnectTimeout,
+    httpx.PoolTimeout,
 )
 
 # * Custom Exception class for GraphQL responses
@@ -1127,18 +1127,20 @@ class GraphQLClient(metaclass=Singleton):
             headers.update(env_headers)
 
         # Use thread-local client for better connection pooling
+        client = self._get_http_client()
         try:
-            client = self._get_http_client()
             response = client.post(
                 env["url"],
                 json=data,
                 headers=headers,
                 timeout=float(env.get("post_timeout", 60)),
             )
-        except Exception as _e:
-            # If connection fails, create a new client and retry
-            self._thread_local.client = httpx.Client(**self.client_params)
-            client = self._thread_local.client
+        except (httpx.RequestError, RuntimeError) as e:
+            if not self._should_retry_on_fresh_connection(e):
+                raise
+            # A closed client is replaced; otherwise httpx opens a fresh
+            # connection on the same pool.
+            client = self._get_http_client()
             response = client.post(
                 env["url"],
                 json=data,
@@ -1202,8 +1204,9 @@ class GraphQLClient(metaclass=Singleton):
 
     @staticmethod
     def _should_retry_on_fresh_connection(error: Exception) -> bool:
-        """True when the connection is unusable but a fresh one should work:
-        a closed/closed-down client or a transient transport error."""
+        """True only when the request provably never reached the server, so
+        sending it again cannot run a mutation twice: a closed client, a dead or
+        foreign event loop, or a failure to open a connection at all."""
         msg = str(error)
         if (
             "Event loop is closed" in msg
@@ -1213,7 +1216,7 @@ class GraphQLClient(metaclass=Singleton):
             or "is bound to a different event loop" in msg
         ):
             return True
-        return isinstance(error, TRANSIENT_TRANSPORT_ERRORS)
+        return isinstance(error, UNSENT_TRANSPORT_ERRORS)
 
     async def async_execute(
         self,
@@ -1262,9 +1265,9 @@ class GraphQLClient(metaclass=Singleton):
             if not self._should_retry_on_fresh_connection(e):
                 raise
             # Retry on the SAME shared client (httpx opens a fresh connection).
-            # Only a closed event loop needs a full rebuild — and it's the only
-            # RuntimeError the predicate admits. Dropping the shared pool per
-            # transient error would churn connections.
+            # Only a closed client or event loop needs a full rebuild — the only
+            # RuntimeErrors the predicate admits. Dropping the shared pool per
+            # connect failure would churn connections.
             if isinstance(e, RuntimeError):
                 await self._drop_async_client()
                 client = await self._get_async_client()

@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.9.2] - 2026-10-04
+
+- [Fixed] `execute` and `async_execute` send a request again only when it provably never reached the server: `httpx.ConnectError`, `ConnectTimeout` or `PoolTimeout`, or a closed client / closed or foreign event loop (as before). Every other transport failure (`ReadError`, `ReadTimeout`, `RemoteProtocolError`, `WriteError`, `WriteTimeout`) is now raised to the caller, so `query`/`mutate` report it in `errors`. Previously sync `execute` re-POSTed once after ANY exception and `async_execute` after any `httpx.NetworkError` or `RemoteProtocolError`; when the server had already committed the first request and only its answer was lost (connection dropped or reset, or a sync read timeout), a mutation without a unique key — e.g. a bulk create — was silently stored twice.
+- [Changed] One rule for queries and mutations. `execute` cannot tell a read from a write without parsing the document, and the reason 3.8.4 resent after `ReadError` — a pooled keep-alive socket the server closed while idle — is already handled by httpcore, which discards such a connection before reusing it (covered by a new test). A query that fails after reaching the server is cheap for the caller to retry; a duplicated mutation is not cheap to undo. Sync `execute` also stops replacing (and leaking) its thread-local client on every failure: like `async_execute`, it resends on the same pool, and `_get_http_client` replaces a closed client. `TRANSIENT_TRANSPORT_ERRORS` is renamed `UNSENT_TRANSPORT_ERRORS`.
+
 ## [3.9.1] - 2026-10-04
 
 - [Fixed] `_ping_pong` now logs a transient send failure (`TRANSIENT_WS_ERRORS`: connection reset/aborted, broken pipe, websocket closed) at WARNING instead of ERROR, matching how `_sub_routing_loop` has classified the same errors on `recv` since 3.7.1. Reconnect via `wss_conn_halted` is unchanged; only the log level differs. The warning names the ping thread and includes the exception, so it is distinguishable from the recv-side warning. (OPS-3616)
