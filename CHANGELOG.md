@@ -2,7 +2,7 @@
 
 ## [3.9.1] - 2026-10-04
 
-- [Fixed] `_ping_pong` now logs a transient send failure (`TRANSIENT_WS_ERRORS`: connection reset/aborted, broken pipe, websocket closed) at WARNING instead of ERROR, matching how `_sub_routing_loop` has classified the same errors on `recv` since 3.7.1. Reconnect via `wss_conn_halted` is unchanged; only the log level differs. (OPS-3616)
+- [Fixed] `_ping_pong` now logs a transient send failure (`TRANSIENT_WS_ERRORS`: connection reset/aborted, broken pipe, websocket closed) at WARNING instead of ERROR, matching how `_sub_routing_loop` has classified the same errors on `recv` since 3.7.1. Reconnect via `wss_conn_halted` is unchanged; only the log level differs. The warning names the ping thread and includes the exception, so it is distinguishable from the recv-side warning. (OPS-3616)
 
 ## [3.9.0] - 2026-10-04
 

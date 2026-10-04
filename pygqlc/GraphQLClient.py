@@ -849,7 +849,7 @@ class GraphQLClient(metaclass=Singleton):
                         if isinstance(e, TRANSIENT_WS_ERRORS):
                             log(
                                 LogLevel.WARNING,
-                                "WSS connection reset or closed by peer",
+                                f"WSS ping send failed, connection closed by peer: {e!r}",
                             )
                         else:
                             log(

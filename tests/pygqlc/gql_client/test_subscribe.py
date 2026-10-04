@@ -288,7 +288,9 @@ def test_ping_pong_connection_reset_logged_as_warning(routing_client):
     assert gql.wss_conn_halted is True
     assert send_called[0] == 1
     assert any(
-        level == LogLevel.WARNING and "reset or closed by peer" in msg
+        level == LogLevel.WARNING
+        and "WSS ping send failed" in msg
+        and "ConnectionResetError" in msg
         for level, msg in records
     )
     assert not any(
