@@ -37,7 +37,7 @@ MUTATION = """mutation($data:[CreateBulkThingParams]!){
 VARIABLES = {"data": [{"name": "a"}]}
 ANSWER = {"data": {"createBulkThings": {"successful": True}}}
 IDLE_CLOSE = 0.1  # how long a server keeps an idle connection in the *idle* modes
-GAP = 0.3  # pause between two requests, longer than IDLE_CLOSE
+CLOSE_WAIT = 10  # upper bound for the server to report that it closed the connection
 
 
 def _reset(sock):
@@ -95,7 +95,12 @@ class _Server(http.server.ThreadingHTTPServer):
         self.posts = []
         self.connections = 0
         self.release = threading.Event()
+        self.closed = threading.Event()
         self.thread = None
+
+    def shutdown_request(self, request):
+        super().shutdown_request(request)
+        self.closed.set()
 
     def get_request(self):
         request = super().get_request()
@@ -135,6 +140,7 @@ class _H2Server:
         self.mode = mode
         self.posts = []
         self.connections = 0
+        self.closed = threading.Event()
         self.sock = socket.create_server(("127.0.0.1", 0))
         threading.Thread(target=self._accept, daemon=True).start()
 
@@ -165,7 +171,8 @@ class _H2Server:
             try:
                 data = conn.recv(65536)
             except TimeoutError:
-                return _reset(conn) if self.mode == "rst_after_idle" else conn.close()
+                _reset(conn) if self.mode == "rst_after_idle" else conn.close()
+                return self.closed.set()
             except OSError:
                 return conn.close()
             if not data:
@@ -356,7 +363,7 @@ def test_execute_does_not_reuse_a_connection_the_server_closed_while_idle(
     gql = connect(server)
 
     assert gql.execute(MUTATION, VARIABLES) == ANSWER
-    time.sleep(GAP)
+    _wait_closed(server)
     assert gql.execute(MUTATION, VARIABLES) == ANSWER
     assert (len(server.posts), server.connections) == (2, 2)
 
@@ -370,9 +377,15 @@ async def test_async_execute_does_not_reuse_a_connection_the_server_closed_while
     gql = connect(server)
 
     assert await gql.async_execute(MUTATION, VARIABLES) == ANSWER
-    await asyncio.sleep(GAP)
+    await asyncio.to_thread(_wait_closed, server)
     assert await gql.async_execute(MUTATION, VARIABLES) == ANSWER
     assert (len(server.posts), server.connections) == (2, 2)
+
+
+def _wait_closed(server):
+    """Block until the server has closed the idle connection, instead of
+    sleeping a fixed time that a slow runner could overrun."""
+    assert server.closed.wait(CLOSE_WAIT), "the server never closed the idle connection"
 
 
 def _connect_h2(connect, server):
@@ -396,7 +409,7 @@ def test_execute_resends_on_an_http2_connection_the_server_closed_while_idle(
     gql = _connect_h2(connect, server)
 
     assert gql.execute(MUTATION, VARIABLES) == ANSWER
-    time.sleep(GAP)
+    _wait_closed(server)
     assert gql.execute(MUTATION, VARIABLES) == ANSWER
     assert (len(server.posts), server.connections) == (2, 2)
 
@@ -410,7 +423,7 @@ async def test_async_execute_resends_on_an_http2_connection_the_server_closed_wh
     gql = _connect_h2(connect, server)
 
     assert await gql.async_execute(MUTATION, VARIABLES) == ANSWER
-    await asyncio.sleep(GAP)
+    await asyncio.to_thread(_wait_closed, server)
     assert await gql.async_execute(MUTATION, VARIABLES) == ANSWER
     assert (len(server.posts), server.connections) == (2, 2)
 
