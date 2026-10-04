@@ -840,12 +840,19 @@ class GraphQLClient(metaclass=Singleton):
             current_time = time.time()
             if (current_time - self.pingTimer) > self.pingIntervalTime:
                 self.pingTimer = current_time
+                # The router thread may swap self._conn mid-send while reconnecting;
+                # pin the socket so a failure on a replaced one is recognizable.
+                conn = self._conn
+                if conn is None:
+                    continue
                 try:
-                    self._conn.send(PING_JSON)
+                    conn.send(PING_JSON)
                     ping_count += 1
                     # No need to log normal ping operations
                 except Exception as e:
-                    if not self.closing:
+                    # A failed send on a socket the router already replaced says nothing
+                    # about the new connection; halting would force a needless reconnect.
+                    if not self.closing and conn is self._conn:
                         if isinstance(e, TRANSIENT_WS_ERRORS):
                             log(
                                 LogLevel.WARNING,

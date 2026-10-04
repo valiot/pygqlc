@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
+import websocket
 
 from pygqlc import GraphQLClient
 from pygqlc.helper_modules.Singleton import Singleton
@@ -327,6 +328,61 @@ def test_ping_pong_unexpected_error_logged_as_error(routing_client):
         level == LogLevel.ERROR and "error trying to send ping" in msg
         for level, msg in records
     )
+
+
+def test_ping_pong_send_failure_on_replaced_socket_does_not_halt(routing_client):
+    """A ping send that fails on a socket the router already replaced (reconnect
+    finished mid-send) must not halt the new connection or log anything."""
+    gql = routing_client
+    gql.pingIntervalTime = 0
+    gql.pingTimer = 0
+    old_conn = gql._conn
+    new_conn = MagicMock()
+
+    def send_effect(data):
+        gql._conn = new_conn  # router's reconnect swaps the socket mid-send
+        raise websocket.WebSocketConnectionClosedException("socket is already closed.")
+
+    old_conn.send.side_effect = send_effect
+
+    sleep_calls = [0]
+
+    def sleepy(*args):
+        sleep_calls[0] += 1
+        if sleep_calls[0] > 2:
+            gql.closing = True
+        return None
+
+    with patch("time.sleep", side_effect=sleepy), _capture_logs() as records:
+        _run_ping_pong(gql)
+
+    assert gql.wss_conn_halted is False
+    assert old_conn.send.call_count == 1
+    assert new_conn.send.call_count >= 1
+    assert not any("ping" in msg for level, msg in records)
+
+
+def test_ping_pong_skips_while_socket_is_cleared(routing_client):
+    """Between closing the old socket and opening a new one, self._conn is None;
+    the ping thread must skip rather than log an AttributeError at ERROR."""
+    gql = routing_client
+    gql.pingIntervalTime = 0
+    gql.pingTimer = 0
+    gql._conn = None
+
+    sleep_calls = [0]
+
+    def sleepy(*args):
+        sleep_calls[0] += 1
+        if sleep_calls[0] > 2:
+            gql.closing = True
+        return None
+
+    with patch("time.sleep", side_effect=sleepy), _capture_logs() as records:
+        _run_ping_pong(gql)
+
+    assert gql.wss_conn_halted is False
+    assert not any(level == LogLevel.ERROR for level, msg in records)
 
 
 def test_addenvironment_reregister_preserves_wss():
