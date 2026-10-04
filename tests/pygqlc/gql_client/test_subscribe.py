@@ -151,7 +151,12 @@ def _run_ping_pong(gql, timeout=1.0):
     thread = threading.Thread(target=gql._ping_pong, daemon=True)
     thread.start()
     thread.join(timeout)
-    assert not thread.is_alive(), "ping pong loop did not terminate"
+    alive = thread.is_alive()
+    if alive:
+        # Stop it so a stuck loop can't leak into later tests.
+        gql.closing = True
+        thread.join(timeout)
+    assert not alive, "ping pong loop did not terminate"
 
 
 @pytest.fixture
@@ -262,8 +267,7 @@ def test_ping_pong_connection_reset_logged_as_warning(routing_client):
     WARNING (not ERROR+traceback) and set wss_conn_halted to trigger reconnection.
     The send error must be classified like recv transient errors (OPS-3485)."""
     gql = routing_client
-    gql.pingIntervalTime = 0
-    gql.pingTimer = 0
+    gql.pingIntervalTime = -1  # ping every iteration, independent of the clock
 
     send_called = [0]
 
@@ -304,8 +308,7 @@ def test_ping_pong_unexpected_error_logged_as_error(routing_client):
     """A non-transient error from _ping_pong send must still surface at ERROR
     level (and halt)."""
     gql = routing_client
-    gql.pingIntervalTime = 0
-    gql.pingTimer = 0
+    gql.pingIntervalTime = -1  # ping every iteration, independent of the clock
 
     def send_effect(data):
         raise ValueError("unexpected ping send failure")
@@ -334,8 +337,7 @@ def test_ping_pong_send_failure_on_replaced_socket_does_not_halt(routing_client)
     """A ping send that fails on a socket the router already replaced (reconnect
     finished mid-send) must not halt the new connection or log anything."""
     gql = routing_client
-    gql.pingIntervalTime = 0
-    gql.pingTimer = 0
+    gql.pingIntervalTime = -1  # ping every iteration, independent of the clock
     old_conn = gql._conn
     new_conn = MagicMock()
 
@@ -366,8 +368,7 @@ def test_ping_pong_skips_while_socket_is_cleared(routing_client):
     """Between closing the old socket and opening a new one, self._conn is None;
     the ping thread must skip rather than log an AttributeError at ERROR."""
     gql = routing_client
-    gql.pingIntervalTime = 0
-    gql.pingTimer = 0
+    gql.pingIntervalTime = -1  # ping every iteration, independent of the clock
     gql._conn = None
 
     sleep_calls = [0]
