@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [3.9.0] - 2026-10-04
+
+- [Added] `execute`, `async_execute`, `mutate`, and `async_mutate` take an optional `operation_name`, sent as `operationName` in the POST body. A document that defines several named operations needs it to say which one to run — most importantly valiot-app transactions, where each step is its own named operation and the server finds the `executeTransaction` entry point only through `operationName` (without it the request fails with a 500). Requests without `operation_name` send the same `{query, variables}` body as before.
+
 ## [3.8.7] - 2026-07-30
 
 - [Fixed] The cached async client is now PER EVENT LOOP. 3.8.6's shared client bound its httpx connection-pool primitives to whichever loop first used it; any consumer running coroutines on more than one loop — e.g. a Temporal worker's main loop plus a subscription callback thread using `asyncio.run` per event (valuechainos-queues' `trigger_by_subscription`) — then failed with `RuntimeError: <asyncio.locks.Event ...> is bound to a different event loop` (observed live as `Error processing workflow QUEUE_REPLENISHMENT_FOR_CSV_REPORT`). Each loop now gets (and reuses) its own client; per-loop reuse keeps 3.8.6's no-churn goal, `_close()` schedules `aclose()` on each client's own loop, and "is bound to a different event loop" joined the retryable-on-fresh-connection predicate as a defensive self-heal.
