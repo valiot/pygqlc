@@ -109,6 +109,17 @@ def has_errors(result):
     return bool(errors)
 
 
+def request_body(
+    query: str, variables: dict | None, operation_name: str | None
+) -> dict:
+    """POST body for a GraphQL request. `operationName` is sent only when given,
+    so single-operation requests keep the body servers have always received."""
+    body = {"query": query, "variables": variables}
+    if operation_name is not None:
+        body["operationName"] = operation_name
+    return body
+
+
 def exception_errors(error: Exception) -> list[dict]:
     """Build the `errors` payload for an exception raised while executing.
 
@@ -408,7 +419,11 @@ class GraphQLClient(metaclass=Singleton):
 
     # * Mutation high level implementation
     def mutate(
-        self, mutation: str, variables: dict | None = None, flatten: bool = True
+        self,
+        mutation: str,
+        variables: dict | None = None,
+        flatten: bool = True,
+        operation_name: str | None = None,
     ) -> tuple:
         """This function makes a mutation transaction to the actual environment.
 
@@ -417,6 +432,8 @@ class GraphQLClient(metaclass=Singleton):
             variables (string, optional): Mutation variables. Defaults to None.
             flatten (bool, optional): Check if GraphQLResponse should be flatten or
              not. Defaults to True.
+            operation_name (string, optional): Operation to run when the document
+             defines several, e.g. a transaction's entry point. Defaults to None.
 
         Returns:
             tuple: Tuple containing (data, errors) from the GraphQL response.
@@ -425,7 +442,7 @@ class GraphQLClient(metaclass=Singleton):
         data = None
         errors = []
         try:
-            response = self.execute(mutation, variables)
+            response = self.execute(mutation, variables, operation_name)
         except Exception as e:
             errors = exception_errors(e)
         finally:
@@ -1064,13 +1081,20 @@ class GraphQLClient(metaclass=Singleton):
             self._thread_local.client = client
         return client
 
-    def execute(self, query: str, variables: dict | None = None) -> dict:
+    def execute(
+        self,
+        query: str,
+        variables: dict | None = None,
+        operation_name: str | None = None,
+    ) -> dict:
         """This function executes the intructions of a query or mutation.
 
         Args:
             query (string): GraphQL instructions.
             variables (string, optional): Variables of the transaction. Defaults
              to None.
+            operation_name (string, optional): Operation to run when the document
+             defines several. Defaults to None.
 
         Raises:
             Exception: There is not setted a main environment.
@@ -1079,7 +1103,7 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             dict: Raw GraphQLResponse.
         """
-        data = {"query": query, "variables": variables}
+        data = request_body(query, variables, operation_name)
         env = self.environments.get(self.environment)
         if not env:
             raise Exception(f"cannot execute query without setting an environment")
@@ -1178,13 +1202,20 @@ class GraphQLClient(metaclass=Singleton):
             return True
         return isinstance(error, TRANSIENT_TRANSPORT_ERRORS)
 
-    async def async_execute(self, query: str, variables: dict | None = None) -> dict:
+    async def async_execute(
+        self,
+        query: str,
+        variables: dict | None = None,
+        operation_name: str | None = None,
+    ) -> dict:
         """Async version of execute method that executes instructions of a query or mutation.
 
         Args:
             query (string): GraphQL instructions.
             variables (string, optional): Variables of the transaction. Defaults
              to None.
+            operation_name (string, optional): Operation to run when the document
+             defines several. Defaults to None.
 
         Raises:
             Exception: There is not setted a main environment.
@@ -1193,7 +1224,7 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             dict: Raw GraphQLResponse.
         """
-        data = {"query": query, "variables": variables}
+        data = request_body(query, variables, operation_name)
         env = self.environments.get(self.environment)
         if not env:
             raise Exception(f"cannot execute query without setting an environment")
@@ -1295,7 +1326,11 @@ class GraphQLClient(metaclass=Singleton):
         return await self.async_query(query, variables, flatten=True, single_child=True)
 
     async def async_mutate(
-        self, mutation: str, variables: dict | None = None, flatten: bool = True
+        self,
+        mutation: str,
+        variables: dict | None = None,
+        flatten: bool = True,
+        operation_name: str | None = None,
     ) -> tuple:
         """Async version of mutate method that makes a mutation transaction
         to the current environment.
@@ -1305,6 +1340,8 @@ class GraphQLClient(metaclass=Singleton):
             variables (string, optional): Mutation variables. Defaults to None.
             flatten (bool, optional): Check if GraphQLResponse should be flatten or
              not. Defaults to True.
+            operation_name (string, optional): Operation to run when the document
+             defines several, e.g. a transaction's entry point. Defaults to None.
 
         Returns:
             tuple: Tuple containing (data, errors) from the GraphQL response.
@@ -1313,7 +1350,7 @@ class GraphQLClient(metaclass=Singleton):
         data = None
         errors = []
         try:
-            response = await self.async_execute(mutation, variables)
+            response = await self.async_execute(mutation, variables, operation_name)
         except Exception as e:
             errors = exception_errors(e)
         finally:
