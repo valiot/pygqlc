@@ -1,21 +1,29 @@
 """A request is sent again only when it provably never reached the server.
 
 A mutation such as a bulk create has no unique key, so sending it twice stores
-it twice. `execute` and `async_execute` therefore resend only after a failure
-to connect (refused, connect timeout, pool timeout) or on a closed client or
-event loop. Once the request is on the wire, any failure (the server drops or
-resets the connection, or answers too late) is raised to the caller.
+it twice. `execute` and `async_execute` therefore resend only when the request
+was not written in full: a failure to connect (refused, connect timeout, pool
+timeout), a pooled connection the server had already closed, or a closed
+client or event loop. Once the whole request is on the wire, any failure (the
+server drops or resets the connection, or answers too late) is raised to the
+caller.
 
-The connection tests use a REAL local HTTP server and a real `GraphQLClient`;
-the server counts the POSTs it received.
+The connection tests use REAL local servers (HTTP/1.1, and HTTP/2 built on the
+`h2` library) and a real `GraphQLClient`; the servers count the POSTs they
+received and the connections they accepted.
 """
 
+import asyncio
 import http.server
 import socket
 import struct
 import threading
+import time
 from unittest.mock import AsyncMock
 
+import h2.config
+import h2.connection
+import h2.events
 import httpx
 import orjson
 import pytest
@@ -28,13 +36,26 @@ MUTATION = """mutation($data:[CreateBulkThingParams]!){
 """
 VARIABLES = {"data": [{"name": "a"}]}
 ANSWER = {"data": {"createBulkThings": {"successful": True}}}
+IDLE_CLOSE = 0.1  # how long a server keeps an idle connection in the *idle* modes
+GAP = 0.3  # pause between two requests, longer than IDLE_CLOSE
+
+
+def _reset(sock):
+    """Close with SO_LINGER 0, so the peer gets an RST instead of a FIN."""
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    sock.close()
 
 
 class _CommittingHandler(http.server.BaseHTTPRequestHandler):
     """Reads and records ("commits") each POST, then answers as `mode` says:
-    `ok` replies, `idle_close` replies and then closes the kept-alive
-    connection, `drop` closes the connection, `reset` resets it, `stall` holds
-    the reply until the test ends."""
+    `ok` replies and keeps the connection alive, `idle_close` replies and
+    closes the connection once it has been idle for IDLE_CLOSE, `drop` closes
+    the connection, `reset` resets it, `stall` holds the reply until the test
+    ends."""
+
+    protocol_version = (
+        "HTTP/1.1"  # keep-alive; the default HTTP/1.0 closes every connection
+    )
 
     def do_POST(self):
         self.rfile.read(int(self.headers.get("Content-Length", 0)))
@@ -46,13 +67,15 @@ class _CommittingHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-            self.close_connection = self.server.mode == "idle_close"
+            if self.server.mode == "idle_close":
+                self.wfile.flush()
+                time.sleep(IDLE_CLOSE)
+                self.close_connection = True
         elif self.server.mode == "drop":
             self.close_connection = True
         elif self.server.mode == "reset":
-            linger_zero = struct.pack("ii", 1, 0)
-            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, linger_zero)
-            self.connection.close()
+            _reset(self.connection)
+            self.close_connection = True
         elif self.server.mode == "stall":
             self.server.release.wait(timeout=10)
             self.close_connection = True
@@ -70,8 +93,14 @@ class _Server(http.server.ThreadingHTTPServer):
         self.server_bind()
         self.mode = mode
         self.posts = []
+        self.connections = 0
         self.release = threading.Event()
         self.thread = None
+
+    def get_request(self):
+        request = super().get_request()
+        self.connections += 1
+        return request
 
     @property
     def url(self):
@@ -93,12 +122,101 @@ class _Server(http.server.ThreadingHTTPServer):
         self.server_close()
 
 
+class _H2Server:
+    """HTTP/2 with prior knowledge, which runs the same httpcore HTTP/2 code
+    as `http2=True` against https. Each request is recorded and answered; then
+    `mode` says what happens to the connection: `ok` keeps it,
+    `fin_after_idle` / `rst_after_idle` close or reset it once it has been
+    idle for IDLE_CLOSE with no GOAWAY (a crash, a killed pod, an LB reset),
+    `commit_then_drop` records the second request and closes without
+    answering."""
+
+    def __init__(self, mode):
+        self.mode = mode
+        self.posts = []
+        self.connections = 0
+        self.sock = socket.create_server(("127.0.0.1", 0))
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    @property
+    def url(self):
+        host, port = self.sock.getsockname()
+        return f"http://{host}:{port}/api"
+
+    def _accept(self):
+        while True:
+            try:
+                conn, _ = self.sock.accept()
+            except OSError:
+                return
+            self.connections += 1
+            threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
+
+    def _serve(self, conn):
+        h2_conn = h2.connection.H2Connection(
+            h2.config.H2Configuration(client_side=False)
+        )
+        h2_conn.initiate_connection()
+        conn.sendall(h2_conn.data_to_send())
+        served = 0
+        while True:
+            idle_close = served and self.mode.endswith("_after_idle")
+            conn.settimeout(IDLE_CLOSE if idle_close else None)
+            try:
+                data = conn.recv(65536)
+            except TimeoutError:
+                return _reset(conn) if self.mode == "rst_after_idle" else conn.close()
+            except OSError:
+                return conn.close()
+            if not data:
+                return conn.close()
+            for event in h2_conn.receive_data(data):
+                if not isinstance(event, h2.events.StreamEnded):
+                    continue
+                served += 1
+                self.posts.append(event.stream_id)
+                if served == 2 and self.mode == "commit_then_drop":
+                    return conn.close()
+                self._answer(h2_conn, event.stream_id)
+            conn.sendall(h2_conn.data_to_send())
+
+    @staticmethod
+    def _answer(h2_conn, stream_id):
+        body = orjson.dumps(ANSWER)
+        h2_conn.send_headers(
+            stream_id,
+            [
+                (":status", "200"),
+                ("content-type", "application/json"),
+                ("content-length", str(len(body))),
+            ],
+        )
+        h2_conn.send_data(stream_id, body, end_stream=True)
+
+    def stop(self):
+        self.sock.close()
+
+
 @pytest.fixture
 def make_server():
     servers = []
 
     def make(mode):
         server = _Server(mode)
+        servers.append(server)
+        return server
+
+    yield make
+    for server in servers:
+        server.stop()
+
+
+@pytest.fixture
+def make_h2_server():
+    servers = []
+
+    def make(mode):
+        server = _H2Server(mode)
         servers.append(server)
         return server
 
@@ -218,19 +336,29 @@ def test_mutate_reports_the_lost_answer_as_an_error(make_server, connect):
     assert len(server.posts) == 1
 
 
-def test_execute_does_not_reuse_a_connection_the_server_closed_while_idle(
-    make_server, connect
-):
-    # 3.8.4 resent after ReadError to survive stale keep-alive sockets. httpcore
-    # already discards a pooled connection the server closed before reusing it,
-    # so dropping that resend does not turn stale sockets into errors.
-    server = make_server("idle_close")
+def test_execute_reuses_a_kept_alive_connection(make_server, connect):
+    server = make_server("ok")
     server.start()
     gql = connect(server)
 
     assert gql.execute(MUTATION, VARIABLES) == ANSWER
     assert gql.execute(MUTATION, VARIABLES) == ANSWER
-    assert len(server.posts) == 2
+    assert (len(server.posts), server.connections) == (2, 1)
+
+
+def test_execute_does_not_reuse_a_connection_the_server_closed_while_idle(
+    make_server, connect
+):
+    # httpcore checks an HTTP/1.1 pooled connection before reusing it, so a
+    # connection the server closed while idle is replaced, not written to.
+    server = make_server("idle_close")
+    server.start()
+    gql = connect(server)
+
+    assert gql.execute(MUTATION, VARIABLES) == ANSWER
+    time.sleep(GAP)
+    assert gql.execute(MUTATION, VARIABLES) == ANSWER
+    assert (len(server.posts), server.connections) == (2, 2)
 
 
 @pytest.mark.asyncio
@@ -242,28 +370,101 @@ async def test_async_execute_does_not_reuse_a_connection_the_server_closed_while
     gql = connect(server)
 
     assert await gql.async_execute(MUTATION, VARIABLES) == ANSWER
+    await asyncio.sleep(GAP)
     assert await gql.async_execute(MUTATION, VARIABLES) == ANSWER
-    assert len(server.posts) == 2
+    assert (len(server.posts), server.connections) == (2, 2)
+
+
+def _connect_h2(connect, server):
+    gql = connect(server)
+    gql.client_params["http1"] = False
+    gql.async_client_params["http1"] = False
+    return gql
+
+
+# httpcore does not check an HTTP/2 pooled connection before reusing it: the
+# request is written to the dead socket and fails before it was sent in full,
+# so it is sent again on a new connection.
+H2_STALE = ["fin_after_idle", "rst_after_idle"]
+
+
+@pytest.mark.parametrize("mode", H2_STALE)
+def test_execute_resends_on_an_http2_connection_the_server_closed_while_idle(
+    make_h2_server, connect, mode
+):
+    server = make_h2_server(mode)
+    gql = _connect_h2(connect, server)
+
+    assert gql.execute(MUTATION, VARIABLES) == ANSWER
+    time.sleep(GAP)
+    assert gql.execute(MUTATION, VARIABLES) == ANSWER
+    assert (len(server.posts), server.connections) == (2, 2)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", H2_STALE)
+async def test_async_execute_resends_on_an_http2_connection_the_server_closed_while_idle(
+    make_h2_server, connect, mode
+):
+    server = make_h2_server(mode)
+    gql = _connect_h2(connect, server)
+
+    assert await gql.async_execute(MUTATION, VARIABLES) == ANSWER
+    await asyncio.sleep(GAP)
+    assert await gql.async_execute(MUTATION, VARIABLES) == ANSWER
+    assert (len(server.posts), server.connections) == (2, 2)
+
+
+def test_execute_never_resends_an_http2_request_the_server_received(
+    make_h2_server, connect
+):
+    server = make_h2_server("commit_then_drop")
+    gql = _connect_h2(connect, server)
+
+    assert gql.execute(MUTATION, VARIABLES) == ANSWER
+    with pytest.raises(httpx.RemoteProtocolError):
+        gql.execute(MUTATION, VARIABLES)
+    assert (len(server.posts), server.connections) == (2, 1)
+
+
+@pytest.mark.asyncio
+async def test_async_execute_never_resends_an_http2_request_the_server_received(
+    make_h2_server, connect
+):
+    server = make_h2_server("commit_then_drop")
+    gql = _connect_h2(connect, server)
+
+    assert await gql.async_execute(MUTATION, VARIABLES) == ANSWER
+    with pytest.raises(httpx.RemoteProtocolError):
+        await gql.async_execute(MUTATION, VARIABLES)
+    assert (len(server.posts), server.connections) == (2, 1)
 
 
 @pytest.mark.parametrize(
-    "error,expected",
+    "error,request_sent,expected",
     [
-        (httpx.ConnectError(""), True),
-        (httpx.ConnectTimeout(""), True),
-        (httpx.PoolTimeout(""), True),
-        (RuntimeError("Event loop is closed"), True),
-        (RuntimeError("Cannot send a request, as the client has been closed."), True),
-        (httpx.ReadError(""), False),
-        (httpx.WriteError(""), False),
-        (httpx.RemoteProtocolError(""), False),
-        (httpx.ReadTimeout(""), False),
-        (httpx.WriteTimeout(""), False),
-        (ValueError("nope"), False),
+        (httpx.ConnectError(""), False, True),
+        (httpx.ConnectTimeout(""), False, True),
+        (httpx.PoolTimeout(""), False, True),
+        (httpx.WriteError(""), False, True),
+        (httpx.WriteTimeout(""), False, True),
+        (RuntimeError("Event loop is closed"), False, True),
+        (
+            RuntimeError("Cannot send a request, as the client has been closed."),
+            False,
+            True,
+        ),
+        (httpx.WriteError(""), True, False),
+        (httpx.ReadError(""), True, False),
+        (httpx.RemoteProtocolError(""), True, False),
+        (httpx.ReadTimeout(""), True, False),
+        (ValueError("nope"), False, False),
     ],
 )
-def test_should_retry_on_fresh_connection(error, expected):
-    assert GraphQLClient._should_retry_on_fresh_connection(error) is expected
+def test_should_retry_on_fresh_connection(error, request_sent, expected):
+    assert (
+        GraphQLClient._should_retry_on_fresh_connection(error, request_sent) is expected
+    )
 
 
 @pytest.mark.asyncio
