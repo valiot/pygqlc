@@ -56,6 +56,8 @@ class _RecordingHandler(http.server.BaseHTTPRequestHandler):
 
 @pytest.fixture
 def recorded_bodies():
+    """Points the shared client at a recording server for one test, then
+    restores the previous environment so later tests are unaffected."""
     bodies = []
     _RecordingHandler.bodies = bodies
     server = http.server.HTTPServer(("127.0.0.1", 0), _RecordingHandler)
@@ -69,10 +71,10 @@ def recorded_bodies():
         wss="ws://127.0.0.1:1/socket/websocket",
         headers={"Authorization": "Bearer test"},
         post_timeout=5,
-        default=True,
     )
     try:
-        yield gql, bodies
+        with gql.enterEnvironment("recording"):
+            yield gql, bodies
     finally:
         server.shutdown()
         thread.join(timeout=5)
@@ -85,7 +87,8 @@ def test_mutate_sends_the_operation_name(recorded_bodies):
 
     assert errors == []
     assert data == {"successful": True, "failedStep": None, "messages": None}
-    assert bodies[0]["operationName"] == "RunTransaction"
+    [body] = bodies
+    assert body["operationName"] == "RunTransaction"
 
 
 @pytest.mark.asyncio
@@ -96,7 +99,8 @@ async def test_async_mutate_sends_the_operation_name(recorded_bodies):
 
     assert errors == []
     assert data["successful"] is True
-    assert bodies[0]["operationName"] == "RunTransaction"
+    [body] = bodies
+    assert body["operationName"] == "RunTransaction"
 
 
 def test_a_request_without_an_operation_name_keeps_the_old_body(recorded_bodies):
@@ -104,4 +108,5 @@ def test_a_request_without_an_operation_name_keeps_the_old_body(recorded_bodies)
 
     gql.mutate("mutation { deleteThing(id: 1) { successful messages { message } } }")
 
-    assert set(bodies[0]) == {"query", "variables"}
+    [body] = bodies
+    assert set(body) == {"query", "variables"}
