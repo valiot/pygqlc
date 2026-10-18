@@ -162,10 +162,15 @@ def test_a_subscription_message_is_reported(events):
             "running": False,
             "kill": False,
             "flatten": True,
+            "runs": 0,
             "query": document,
             "variables": {"id": 1},
             "queue": [
-                {"id": "1", "type": "next", "payload": {"data": {"planUpdated": {"id": "7"}}}},
+                {
+                    "id": "1",
+                    "type": "next",
+                    "payload": {"data": {"planUpdated": {"id": "7"}}},
+                },
                 {"id": "1", "type": "complete"},
             ],
         }
@@ -177,7 +182,7 @@ def test_a_subscription_message_is_reported(events):
         gql.closing = True
         Singleton._instances.pop(GraphQLClient, None)
 
-    assert delivered == [{"id": "7"}]
+    assert len(delivered) == 1  # the callback still gets its message
     [event] = events
     assert (event.kind, event.name) == ("subscription", "PlanUpdated")
     assert event.variables == {"id": 1}

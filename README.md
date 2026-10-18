@@ -298,6 +298,27 @@ set_logger(my_custom_logger)
 
 The default logger will use valiotlogging if available, otherwise it will use a simple print-based logger.
 
+### Operation hooks
+
+To observe every operation the client runs (for tracing, metrics or debugging), register a hook. It is called once per
+query or mutation, when `execute`/`async_execute` finish (a resend included), and once per subscription message:
+
+```python
+from pygqlc import hooks
+
+def trace(event: hooks.OperationEvent):
+    print(event.kind, event.name, f"{event.duration * 1000:.0f} ms", event.error or "ok")
+
+hooks.add_operation_hook(trace)
+```
+
+The `OperationEvent` carries `kind` (`query`, `mutation`, `subscription`), `name` (the operation's name or
+`anonymous`), `document`, `variables`, `environment`, `started_at` (epoch seconds), `duration` (seconds; 0 for a
+subscription message), `response` (the raw `{data, errors}` dict or message payload) and `error` (what `execute`
+raised). Hooks only observe: an exception in a hook is logged and never reaches the caller. Like `set_logger`, the
+registry is process-wide. A hook runs on the operation's own thread and event loop, so keep it quick. Without hooks
+the client does no extra work.
+
 ### for mantainers:
 
 #### Initial configuration

@@ -20,6 +20,7 @@ import orjson
 import logging
 from pygqlc.helper_modules.Singleton import Singleton
 from pygqlc.logging import log, LogLevel
+from pygqlc.hooks import notify_subscription_message, observed_operation
 from tenacity import retry, retry_if_result, stop_after_attempt, wait_random
 from .MutationBatch import MutationBatch
 
@@ -714,6 +715,12 @@ class GraphQLClient(metaclass=Singleton):
                 pass
             else:
                 # Process message more efficiently
+                notify_subscription_message(
+                    self.subs[_id].get("query"),
+                    self.subs[_id].get("variables"),
+                    self.environment,
+                    message.get("payload"),
+                )
                 gql_msg = self._clean_sub_message(_id, message)
                 try:
                     _cb(gql_msg)  # execute callback function
@@ -1128,6 +1135,16 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             dict: Raw GraphQLResponse.
         """
+        with observed_operation(
+            query, variables, operation_name, self.environment
+        ) as outcome:
+            outcome.response = self._post_operation(query, variables, operation_name)
+            return outcome.response
+
+    def _post_operation(
+        self, query: str, variables: dict | None, operation_name: str | None
+    ) -> dict:
+        """The POST behind `execute`, without the operation hooks."""
         data = request_body(query, variables, operation_name)
         env = self.environments.get(self.environment)
         if not env:
@@ -1256,6 +1273,18 @@ class GraphQLClient(metaclass=Singleton):
         Returns:
             dict: Raw GraphQLResponse.
         """
+        with observed_operation(
+            query, variables, operation_name, self.environment
+        ) as outcome:
+            outcome.response = await self._async_post_operation(
+                query, variables, operation_name
+            )
+            return outcome.response
+
+    async def _async_post_operation(
+        self, query: str, variables: dict | None, operation_name: str | None
+    ) -> dict:
+        """The POST behind `async_execute`, without the operation hooks."""
         data = request_body(query, variables, operation_name)
         env = self.environments.get(self.environment)
         if not env:
