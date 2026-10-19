@@ -1,0 +1,23 @@
+$ git checkout b6a5442  # the tests, before the hooks existed
+$ uv run pytest tests/pygqlc/gql_client/test_operation_hooks.py
+Using CPython 3.12.11
+Creating virtual environment at: .venv
+   Building pygqlc @ file:///private/var/folders/gb/1tvjdh897m1dh9xbsk1wv6v40000gn/T/tmp.vESpdhjv7u/red
+      Built pygqlc @ file:///private/var/folders/gb/1tvjdh897m1dh9xbsk1wv6v40000gn/T/tmp.vESpdhjv7u/red
+Installed 69 packages in 172ms
+
+==================================== ERRORS ====================================
+_______ ERROR collecting tests/pygqlc/gql_client/test_operation_hooks.py _______
+ImportError while importing test module '/private/var/folders/gb/1tvjdh897m1dh9xbsk1wv6v40000gn/T/tmp.vESpdhjv7u/red/tests/pygqlc/gql_client/test_operation_hooks.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+~/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/pygqlc/gql_client/test_operation_hooks.py:19: in <module>
+    from pygqlc import GraphQLClient, hooks
+E   ImportError: cannot import name 'hooks' from 'pygqlc' (/private/var/folders/gb/1tvjdh897m1dh9xbsk1wv6v40000gn/T/tmp.vESpdhjv7u/red/pygqlc/__init__.py)
+=========================== short test summary info ============================
+ERROR tests/pygqlc/gql_client/test_operation_hooks.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.07s

@@ -1,0 +1,28 @@
+{
+ "title": "pygqlc#88: operation hooks (3.10.0)",
+ "generated": "2026-10-19T19:53:05+00:00",
+ "open": "index.html",
+ "items": [
+  {
+   "path": "tests/red-b6a5442.log",
+   "kind": "red test log",
+   "bytes": 1577,
+   "open": {
+    "link": "tests/red-b6a5442.log"
+   },
+   "agent": true,
+   "claim": "Red first: the hook tests, committed before the hooks existed, fail to import pygqlc.hooks"
+  },
+  {
+   "path": "tests/green.log",
+   "kind": "log",
+   "bytes": 658,
+   "open": {
+    "link": "tests/green.log"
+   },
+   "agent": true,
+   "claim": "Green: the 8 hook tests pass against a real local HTTP server; the 25 errors are the suite's live-server tests, the same 25 as on main"
+  }
+ ],
+ "skipped": []
+}

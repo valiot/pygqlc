@@ -1,0 +1,7 @@
+{
+ "title": "pygqlc#88: operation hooks (3.10.0)",
+ "items": {
+  "tests/red-b6a5442.log": "Red first: the hook tests, committed before the hooks existed, fail to import pygqlc.hooks",
+  "tests/green.log": "Green: the 8 hook tests pass against a real local HTTP server; the 25 errors are the suite's live-server tests, the same 25 as on main"
+ }
+}
