@@ -126,6 +126,18 @@ def test_a_failed_request_is_reported_with_its_error_and_still_returns_errors(
     assert getattr(event.error, "status_code", None) == 500
 
 
+def test_without_hooks_a_failed_request_still_returns_its_errors(server):
+    # The empty registry takes its own path through observed_operation: the
+    # error must still reach mutate's error handling, as before hooks existed.
+    _Server.status = 500
+    _Server.payload = {"errors": [{"message": "boom"}]}
+
+    data, errors = server.mutate(UPDATE)
+
+    assert data is None
+    assert errors and "500" in errors[0]["message"]
+
+
 def test_a_hook_that_raises_does_not_change_the_result(server, events):
     def broken(_event):
         raise RuntimeError("hook bug")
