@@ -609,6 +609,9 @@ class GraphQLClient(metaclass=Singleton):
             try:
                 self._conn.settimeout(0.5)
                 raw = self._conn.recv()
+                # Restore before any branch. The ping thread shares this socket,
+                # and a stream of empty frames must not leave it on the 0.5s poll.
+                self._conn.settimeout(self.websocket_timeout)
                 # websocket-client returns "" for a CLOSE frame (and has already
                 # marked the socket disconnected) and ""/b"" for a zero-length
                 # data frame on a live socket. orjson.loads raises JSONDecodeError
@@ -627,7 +630,6 @@ class GraphQLClient(metaclass=Singleton):
                         time.sleep(self.poll_interval)
                     continue
                 message = orjson.loads(raw)
-                self._conn.settimeout(self.websocket_timeout)
             except (TimeoutError, websocket.WebSocketTimeoutException):
                 time.sleep(self.poll_interval)
                 continue

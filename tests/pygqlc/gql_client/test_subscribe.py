@@ -320,6 +320,16 @@ def test_sub_routing_loop_empty_frame_does_not_halt(routing_client):
     assert frames == [], "every empty frame must be consumed, not left unparsed"
     assert gql.wss_conn_halted is False
     new_conn.assert_not_called()
+    # Each returned frame, empty or not, must restore the shared socket timeout.
+    # Leaving it at the 0.5s poll timeout makes a later ping send time out.
+    assert [c.args[0] for c in gql._conn.settimeout.call_args_list] == [
+        0.5,
+        gql.websocket_timeout,
+        0.5,
+        gql.websocket_timeout,
+        0.5,
+        gql.websocket_timeout,
+    ]
     assert not any(level == LogLevel.ERROR for level, msg in records)
     assert not any("Some error trying to receive WSS" in msg for _, msg in records)
     assert not any("invalid WSS message" in msg for _, msg in records)
