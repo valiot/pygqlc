@@ -298,11 +298,12 @@ def test_sub_routing_loop_unexpected_error_logged_as_error(routing_client):
 
 
 def test_sub_routing_loop_empty_frame_does_not_halt(routing_client):
-    """FEMSA-79: a zero-length WSS frame is not JSON. Parsing it raises
-    orjson.JSONDecodeError, which is not in TRANSIENT_WS_ERRORS, so the generic
-    handler used to log ERROR and set wss_conn_halted — tearing the socket down
-    and resubscribing. Empty frames (keepalive / proxy noise) must be skipped."""
+    """FEMSA-79: a zero-length data frame on a live socket is not JSON. Parsing
+    it raises orjson.JSONDecodeError, which is not in TRANSIENT_WS_ERRORS, so
+    the generic handler used to log ERROR and set wss_conn_halted — tearing the
+    socket down and resubscribing. A still-connected empty frame must be skipped."""
     gql = routing_client
+    gql._conn.connected = True
     frames = [b"", ""]
 
     def _recv_then_close():
@@ -322,6 +323,32 @@ def test_sub_routing_loop_empty_frame_does_not_halt(routing_client):
     assert not any(level == LogLevel.ERROR for level, msg in records)
     assert not any("Some error trying to receive WSS" in msg for _, msg in records)
     assert not any("invalid WSS message" in msg for _, msg in records)
+
+
+def test_sub_routing_loop_close_frame_halts_as_warning(routing_client):
+    """websocket-client returns "" for a CLOSE frame after setting connected=False.
+    That empty recv is a real close, not keepalive: log WARNING and reconnect,
+    do not parse it and do not log ERROR."""
+    gql = routing_client
+    gql._conn.connected = False
+    gql._conn.recv.return_value = ""
+
+    with (
+        patch.object(gql, "_new_conn", side_effect=_stop_loop_on(gql)) as new_conn,
+        _capture_logs() as records,
+    ):
+        _run_routing_loop(gql)
+
+    assert gql.wss_conn_halted is True
+    assert new_conn.called
+    assert any(
+        level == LogLevel.WARNING and "reset or closed by peer" in msg
+        for level, msg in records
+    )
+    assert not any(
+        level == LogLevel.ERROR and "Some error trying to receive WSS" in msg
+        for level, msg in records
+    )
 
 
 def test_sub_routing_loop_malformed_json_still_halts(routing_client):

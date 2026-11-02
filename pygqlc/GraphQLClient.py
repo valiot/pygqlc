@@ -609,13 +609,22 @@ class GraphQLClient(metaclass=Singleton):
             try:
                 self._conn.settimeout(0.5)
                 raw = self._conn.recv()
-                # A zero-length frame is not a message. Proxies and servers emit
-                # them as keepalive; orjson.loads raises JSONDecodeError, which is
-                # not a transient socket error, so parsing them used to log ERROR
-                # and tear the connection down (FEMSA-79).
+                # websocket-client returns "" for a CLOSE frame (and has already
+                # marked the socket disconnected) and ""/b"" for a zero-length
+                # data frame on a live socket. orjson.loads raises JSONDecodeError
+                # on either, which is not a transient socket error, so both used
+                # to log ERROR and halt. A close must reconnect; a live empty
+                # frame must not — that reconnect drops in-flight subscriptions.
                 if not raw:
-                    log(LogLevel.DEBUG, "ignoring zero-length WSS frame")
-                    time.sleep(self.poll_interval)
+                    if getattr(self._conn, "connected", True) is False:
+                        log(
+                            LogLevel.WARNING,
+                            "WSS connection reset or closed by peer",
+                        )
+                        self.wss_conn_halted = True
+                    else:
+                        log(LogLevel.DEBUG, "ignoring zero-length WSS frame")
+                        time.sleep(self.poll_interval)
                     continue
                 message = orjson.loads(raw)
                 self._conn.settimeout(self.websocket_timeout)
