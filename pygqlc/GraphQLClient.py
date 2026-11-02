@@ -609,6 +609,14 @@ class GraphQLClient(metaclass=Singleton):
             try:
                 self._conn.settimeout(0.5)
                 raw = self._conn.recv()
+                # A zero-length frame is not a message. Proxies and servers emit
+                # them as keepalive; orjson.loads raises JSONDecodeError, which is
+                # not a transient socket error, so parsing them used to log ERROR
+                # and tear the connection down (FEMSA-79).
+                if not raw:
+                    log(LogLevel.DEBUG, "ignoring zero-length WSS frame")
+                    time.sleep(self.poll_interval)
+                    continue
                 message = orjson.loads(raw)
                 self._conn.settimeout(self.websocket_timeout)
             except (TimeoutError, websocket.WebSocketTimeoutException):

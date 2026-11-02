@@ -297,6 +297,53 @@ def test_sub_routing_loop_unexpected_error_logged_as_error(routing_client):
     )
 
 
+def test_sub_routing_loop_empty_frame_does_not_halt(routing_client):
+    """FEMSA-79: a zero-length WSS frame is not JSON. Parsing it raises
+    orjson.JSONDecodeError, which is not in TRANSIENT_WS_ERRORS, so the generic
+    handler used to log ERROR and set wss_conn_halted — tearing the socket down
+    and resubscribing. Empty frames (keepalive / proxy noise) must be skipped."""
+    gql = routing_client
+    frames = [b"", ""]
+
+    def _recv_then_close():
+        if frames:
+            return frames.pop(0)
+        gql.closing = True
+        return b'{"type":"pong"}'
+
+    gql._conn.recv.side_effect = _recv_then_close
+
+    with patch.object(gql, "_new_conn") as new_conn, _capture_logs() as records:
+        _run_routing_loop(gql)
+
+    assert frames == [], "every empty frame must be consumed, not left unparsed"
+    assert gql.wss_conn_halted is False
+    new_conn.assert_not_called()
+    assert not any(level == LogLevel.ERROR for level, msg in records)
+    assert not any("Some error trying to receive WSS" in msg for _, msg in records)
+    assert not any("invalid WSS message" in msg for _, msg in records)
+
+
+def test_sub_routing_loop_malformed_json_still_halts(routing_client):
+    """A non-empty payload that is not JSON is still a protocol error: log ERROR
+    and halt. Only a zero-length frame is skipped (FEMSA-79)."""
+    gql = routing_client
+    gql._conn.recv.return_value = b"{not-json"
+
+    with (
+        patch.object(gql, "_new_conn", side_effect=_stop_loop_on(gql)) as new_conn,
+        _capture_logs() as records,
+    ):
+        _run_routing_loop(gql)
+
+    assert gql.wss_conn_halted is True
+    assert new_conn.called
+    assert any(
+        level == LogLevel.ERROR and "Some error trying to receive WSS" in msg
+        for level, msg in records
+    )
+
+
 def test_sub_routing_loop_valid_message_does_not_halt(routing_client):
     """Regression: a well-formed dict message routes normally without halting or
     triggering reconnection."""
