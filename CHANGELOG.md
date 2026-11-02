@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.10.1] - 2026-11-02
+
+- [Fixed] A peer-initiated WSS close that surfaces as a bare `OSError` (`EBADF` / Errno 9, `ENOTCONN`, or a bare `ECONNRESET`) is now a transient reconnect: `_sub_routing_loop` and `_ping_pong` log it at WARNING and set `wss_conn_halted`, instead of ERROR with a traceback. `websocket-client` replies to that close with a close frame on the already-dead socket, and Python does not promote `EBADF`/`ENOTCONN` to a `Connection*` subclass, so they missed `TRANSIENT_WS_ERRORS`. Other `OSError`s still log at ERROR. Reconnect behavior is unchanged. (FEMSA-80)
+- [Dependencies] Refreshed dependencies within allowed ranges (`orjson` 3.12.0 → 3.13.0, `tenacity` 9.1.4 → 9.2.1, plus transitive); `uv.lock` updated.
+
 ## [3.10.0] - 2026-10-18
 
 - [Added] Operation hooks (`pygqlc.hooks.add_operation_hook` / `remove_operation_hook`): a function that observes every operation the client runs, called once per query or mutation when `execute`/`async_execute` finish (a resend included) and once per subscription message, with an `OperationEvent` (kind, name, document, variables, environment, start, duration, response or error). Consumers can trace or measure their GraphQL traffic (Valiot workers use it to put each call on a timeline next to the screen that triggered the work) without wrapping the client. Hooks only observe: a hook's exception is logged and never reaches the caller, and `query`/`mutate` return exactly what they returned before. The registry is process-wide like `set_logger`, so it survives a reset of the `GraphQLClient` singleton. With no hooks registered the client does no extra work; the POST body, retries and errors are unchanged.

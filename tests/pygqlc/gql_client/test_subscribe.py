@@ -1,5 +1,6 @@
 from . import subscriptions as subs
 from . import mutations as muts
+import errno
 import types
 import time
 
@@ -222,6 +223,60 @@ def test_sub_routing_loop_connection_reset_logged_as_warning(routing_client):
     )
 
 
+@pytest.mark.parametrize("errno_code", [errno.EBADF, errno.ENOTCONN])
+def test_sub_routing_loop_dead_socket_oserror_logged_as_warning(
+    routing_client, errno_code
+):
+    """FEMSA-80: a peer close makes websocket-client's recv reply with a close
+    frame on an already-dead socket, raising a bare OSError (Errno 9 / EBADF,
+    or ENOTCONN). Python does not promote those to a Connection* subclass, so
+    they must be classified as a transient teardown — WARNING and reconnect,
+    not ERROR with a traceback. ECONNRESET is already ConnectionResetError."""
+    gql = routing_client
+    gql._conn.recv.side_effect = OSError(errno_code, "Bad file descriptor")
+
+    with (
+        patch.object(gql, "_new_conn", side_effect=_stop_loop_on(gql)) as new_conn,
+        _capture_logs() as records,
+    ):
+        _run_routing_loop(gql)
+
+    assert gql.wss_conn_halted is True
+    assert new_conn.called
+    assert any(
+        level == LogLevel.WARNING and "reset or closed by peer" in msg
+        for level, msg in records
+    )
+    assert not any(
+        level == LogLevel.ERROR and "Some error trying to receive WSS" in msg
+        for level, msg in records
+    )
+
+
+def test_sub_routing_loop_unrelated_oserror_logged_as_error(routing_client):
+    """A bare OSError that is not a dead-socket errno must still surface at
+    ERROR. Blanket-catching OSError would hide real bugs (EACCES, etc.)."""
+    gql = routing_client
+    gql._conn.recv.side_effect = OSError(errno.EACCES, "Permission denied")
+
+    with (
+        patch.object(gql, "_new_conn", side_effect=_stop_loop_on(gql)) as new_conn,
+        _capture_logs() as records,
+    ):
+        _run_routing_loop(gql)
+
+    assert gql.wss_conn_halted is True
+    assert new_conn.called
+    assert any(
+        level == LogLevel.ERROR and "Some error trying to receive WSS" in msg
+        for level, msg in records
+    )
+    assert not any(
+        level == LogLevel.WARNING and "reset or closed by peer" in msg
+        for level, msg in records
+    )
+
+
 def test_sub_routing_loop_unexpected_error_logged_as_error(routing_client):
     """A non-transient error (not in TRANSIENT_WS_ERRORS) must still surface at ERROR
     level and halt for reconnection."""
@@ -296,6 +351,39 @@ def test_ping_pong_connection_reset_logged_as_warning(routing_client):
         level == LogLevel.WARNING
         and "WSS ping send failed" in msg
         and "ConnectionResetError" in msg
+        for level, msg in records
+    )
+    assert not any(
+        level == LogLevel.ERROR and "error trying to send ping" in msg
+        for level, msg in records
+    )
+
+
+def test_ping_pong_bad_file_descriptor_logged_as_warning(routing_client):
+    """FEMSA-80: OSError(EBADF) from a ping send is the same dead socket as on
+    recv — WARNING and halt, not ERROR."""
+    gql = routing_client
+    gql.pingIntervalTime = -1  # ping every iteration, independent of the clock
+
+    def send_effect(data):
+        raise OSError(errno.EBADF, "Bad file descriptor")
+
+    gql._conn.send.side_effect = send_effect
+
+    sleep_calls = [0]
+
+    def sleepy(*args):
+        sleep_calls[0] += 1
+        if sleep_calls[0] > 2:
+            gql.closing = True
+        return None
+
+    with patch("time.sleep", side_effect=sleepy), _capture_logs() as records:
+        _run_ping_pong(gql)
+
+    assert gql.wss_conn_halted is True
+    assert any(
+        level == LogLevel.WARNING and "WSS ping send failed" in msg
         for level, msg in records
     )
     assert not any(
