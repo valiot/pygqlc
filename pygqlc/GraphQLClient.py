@@ -609,8 +609,27 @@ class GraphQLClient(metaclass=Singleton):
             try:
                 self._conn.settimeout(0.5)
                 raw = self._conn.recv()
-                message = orjson.loads(raw)
+                # Restore before any branch. The ping thread shares this socket,
+                # and a stream of empty frames must not leave it on the 0.5s poll.
                 self._conn.settimeout(self.websocket_timeout)
+                # websocket-client returns "" for a CLOSE frame (and has already
+                # marked the socket disconnected) and ""/b"" for a zero-length
+                # data frame on a live socket. orjson.loads raises JSONDecodeError
+                # on either, which is not a transient socket error, so both used
+                # to log ERROR and halt. A close must reconnect; a live empty
+                # frame must not — that reconnect drops in-flight subscriptions.
+                if not raw:
+                    if getattr(self._conn, "connected", True) is False:
+                        log(
+                            LogLevel.WARNING,
+                            "WSS connection reset or closed by peer",
+                        )
+                        self.wss_conn_halted = True
+                    else:
+                        log(LogLevel.DEBUG, "ignoring zero-length WSS frame")
+                        time.sleep(self.poll_interval)
+                    continue
+                message = orjson.loads(raw)
             except (TimeoutError, websocket.WebSocketTimeoutException):
                 time.sleep(self.poll_interval)
                 continue
