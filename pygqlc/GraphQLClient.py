@@ -8,6 +8,7 @@ GQLResponse (type variable): [data[field(string)], errors[message(string),
 """
 
 import asyncio
+import errno
 import traceback
 import weakref
 import time
@@ -40,6 +41,19 @@ TRANSIENT_WS_ERRORS = (
     ConnectionAbortedError,
     websocket.WebSocketConnectionClosedException,
 )
+
+# Errnos Python leaves as a bare OSError (no Connection* subclass). They mean
+# the fd is already gone: the peer closed, or another thread closed it, and
+# websocket-client's close-frame reply then fails in sock.send. ECONNRESET is
+# usually promoted to ConnectionResetError; a bare OSError with that errno
+# (copied or assigned after construction) is the same teardown. (FEMSA-80)
+_DEAD_SOCKET_ERRNOS = frozenset({errno.EBADF, errno.ENOTCONN, errno.ECONNRESET})
+
+
+def _is_transient_ws_error(exc):
+    if isinstance(exc, TRANSIENT_WS_ERRORS):
+        return True
+    return isinstance(exc, OSError) and exc.errno in _DEAD_SOCKET_ERRNOS
 
 
 class _RequestSentTrace:
@@ -602,7 +616,7 @@ class GraphQLClient(metaclass=Singleton):
                 continue
             except Exception as e:
                 if not self.closing:
-                    if isinstance(e, TRANSIENT_WS_ERRORS):
+                    if _is_transient_ws_error(e):
                         log(LogLevel.WARNING, "WSS connection reset or closed by peer")
                     else:
                         log(LogLevel.ERROR, "Some error trying to receive WSS")
@@ -872,7 +886,7 @@ class GraphQLClient(metaclass=Singleton):
                     # A failed send on a socket the router already replaced says nothing
                     # about the new connection; halting would force a needless reconnect.
                     if not self.closing and conn is self._conn:
-                        if isinstance(e, TRANSIENT_WS_ERRORS):
+                        if _is_transient_ws_error(e):
                             log(
                                 LogLevel.WARNING,
                                 f"WSS ping send failed, connection closed by peer: {e!r}",
