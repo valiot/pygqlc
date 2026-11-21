@@ -40,7 +40,10 @@ def test_each_loop_gets_its_own_client(client):
     async def grab():
         seen.append(await client._get_async_client())
 
-    with patch("pygqlc.GraphQLClient.httpx.AsyncClient", side_effect=lambda **_: AsyncMock(is_closed=False)):
+    with patch(
+        "pygqlc.GraphQLClient.httpx.AsyncClient",
+        side_effect=lambda **_: AsyncMock(is_closed=False),
+    ):
         asyncio.run(grab())
         asyncio.run(grab())
 
@@ -57,7 +60,8 @@ def test_same_loop_reuses_its_client(client):
         seen.append(await client._get_async_client())
 
     with patch(
-        "pygqlc.GraphQLClient.httpx.AsyncClient", side_effect=lambda **_: AsyncMock(is_closed=False)
+        "pygqlc.GraphQLClient.httpx.AsyncClient",
+        side_effect=lambda **_: AsyncMock(is_closed=False),
     ) as ctor:
         asyncio.run(grab_twice())
 
@@ -77,7 +81,9 @@ def test_async_execute_across_loops_posts_on_each_loops_client(client):
         created.append(mock)
         return mock
 
-    with patch("pygqlc.GraphQLClient.httpx.AsyncClient", side_effect=make_client) as ctor:
+    with patch(
+        "pygqlc.GraphQLClient.httpx.AsyncClient", side_effect=make_client
+    ) as ctor:
         asyncio.run(client.async_execute("query { ok }"))
         asyncio.run(client.async_execute("query { ok }"))
 

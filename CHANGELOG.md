@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [3.10.2] - 2026-11-21
+
+- [Fixed] A zero-length WSS frame no longer logs ERROR and resubscribes every subscription. `websocket-client.recv()` returns `""` for a CLOSE frame (socket already disconnected) and `""`/`b""` for an empty data frame on a live socket. `orjson.loads` on that raises `JSONDecodeError`, which missed `_is_transient_ws_error`, so the router logged ERROR and set `wss_conn_halted`. A disconnected socket still reconnects, at WARNING. A live empty frame is skipped at DEBUG, and the socket timeout is restored so a stream of them does not leave the shared socket on the 0.5s poll. A non-empty payload that is not JSON still halts at ERROR. (LAMGTO-59)
+- [Dependencies] Refreshed dependencies within allowed ranges (dev/transitive: `pylint` 4.1.3 → 4.1.4, `pytest-asyncio` 1.4.1 → 1.5.0, `certifi` 2026.10.23 → 2026.11.20, plus others); `uv.lock` updated.
+
 ## [3.10.1] - 2026-11-02
 
 - [Fixed] A peer-initiated WSS close that surfaces as a bare `OSError` (`EBADF` / Errno 9, `ENOTCONN`, or a bare `ECONNRESET`) is now a transient reconnect: `_sub_routing_loop` and `_ping_pong` log it at WARNING and set `wss_conn_halted`, instead of ERROR with a traceback. `websocket-client` replies to that close with a close frame on the already-dead socket, and Python does not promote `EBADF`/`ENOTCONN` to a `Connection*` subclass, so they missed `TRANSIENT_WS_ERRORS`. Other `OSError`s still log at ERROR. Reconnect behavior is unchanged. (FEMSA-80)
